@@ -1,0 +1,184 @@
+import type {
+  RequestStatus,
+  RequestPriority,
+  RiskLevel,
+  UserRole,
+  FinalResult,
+  VerificationStatus,
+  QrCodeStatus,
+  DisputeStatus,
+  AlertSeverity,
+} from "@prisma/client";
+
+/**
+ * Centralized copy for status/risk language. MedCheck never asserts fraud —
+ * only confirms, fails to confirm, or flags a document for review. Keeping
+ * every label here means the "no accusatory language" rule is enforced in
+ * one place instead of re-derived at each call site.
+ */
+
+export const STATUS_LABELS: Record<RequestStatus, string> = {
+  RECEIVED: "Recebida",
+  PROCESSING: "Em processamento",
+  OCR_RUNNING: "Leitura do documento",
+  OCR_COMPLETED: "Leitura concluída",
+  DATA_EXTRACTED: "Dados extraídos",
+  AUTO_VALIDATION_RUNNING: "Validação automática",
+  WAITING_HUMAN_REVIEW: "Aguardando revisão humana",
+  MANUAL_REVIEW: "Em revisão manual",
+  WAITING_CLINIC_CONTACT: "Aguardando contato com clínica",
+  CLINIC_CONTACTED: "Clínica contatada",
+  WAITING_EXTERNAL_RESPONSE: "Aguardando resposta externa",
+  SUPERVISOR_REVIEW: "Em revisão de supervisor",
+  FINAL_REPORT_READY: "Parecer disponível",
+  VALIDATED: "Confirmado pela instituição emissora",
+  VALIDATED_WITH_REMARKS: "Confirmado com ressalvas",
+  INCONCLUSIVE: "Validação inconclusiva",
+  INCONSISTENT: "Indício de inconsistência",
+  NOT_CONFIRMED: "Documento não confirmado",
+  NOT_RECOGNIZED_BY_INSTITUTION: "Não reconhecido pela instituição emissora",
+  CANCELLED: "Cancelada",
+  EXPIRED: "Expirada",
+  CONTESTED: "Em contestação",
+  REOPENED: "Reaberta",
+};
+
+export const STATUS_TONE: Record<
+  RequestStatus,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
+  RECEIVED: "neutral",
+  PROCESSING: "info",
+  OCR_RUNNING: "info",
+  OCR_COMPLETED: "info",
+  DATA_EXTRACTED: "info",
+  AUTO_VALIDATION_RUNNING: "info",
+  WAITING_HUMAN_REVIEW: "warning",
+  MANUAL_REVIEW: "warning",
+  WAITING_CLINIC_CONTACT: "warning",
+  CLINIC_CONTACTED: "warning",
+  WAITING_EXTERNAL_RESPONSE: "warning",
+  SUPERVISOR_REVIEW: "warning",
+  FINAL_REPORT_READY: "info",
+  VALIDATED: "success",
+  VALIDATED_WITH_REMARKS: "success",
+  INCONCLUSIVE: "neutral",
+  INCONSISTENT: "danger",
+  NOT_CONFIRMED: "danger",
+  NOT_RECOGNIZED_BY_INSTITUTION: "danger",
+  CANCELLED: "neutral",
+  EXPIRED: "neutral",
+  CONTESTED: "warning",
+  REOPENED: "warning",
+};
+
+export const FINAL_RESULT_LABELS: Record<FinalResult, string> = {
+  VALIDATED: "Confirmado pela instituição emissora",
+  VALIDATED_WITH_REMARKS: "Confirmado com ressalvas",
+  INCONCLUSIVE: "Validação inconclusiva",
+  INCONSISTENT: "Indício de inconsistência",
+  NOT_CONFIRMED: "Documento não confirmado",
+  NOT_RECOGNIZED_BY_INSTITUTION: "Não reconhecido pela instituição emissora",
+};
+
+export const RISK_LABELS: Record<RiskLevel, string> = {
+  VERY_LOW: "Confiabilidade muito alta",
+  LOW: "Confiabilidade alta",
+  MEDIUM: "Confiabilidade média",
+  HIGH: "Confiabilidade baixa",
+  CRITICAL: "Confiabilidade crítica",
+};
+
+export const RISK_TONE: Record<
+  RiskLevel,
+  "success" | "info" | "warning" | "danger"
+> = {
+  VERY_LOW: "success",
+  LOW: "success",
+  MEDIUM: "warning",
+  HIGH: "danger",
+  CRITICAL: "danger",
+};
+
+export const VERIFICATION_STATUS_LABELS: Record<VerificationStatus, string> = {
+  PENDING: "Pendente",
+  VALIDATED: "Confirmado",
+  NOT_FOUND: "Não localizado",
+  DIVERGENT: "Dados divergentes",
+  INCONCLUSIVE: "Inconclusivo",
+  QUERY_ERROR: "Erro na consulta",
+};
+
+export const QR_STATUS_LABELS: Record<QrCodeStatus, string> = {
+  NOT_PRESENT: "Sem QR Code",
+  PENDING: "Verificação pendente",
+  VALID: "Válido",
+  INVALID: "Inválido",
+  UNREACHABLE: "Link inacessível",
+  DOMAIN_SUSPICIOUS: "Domínio não reconhecido",
+  DATA_MISMATCH: "Dados divergentes",
+  INCONCLUSIVE: "Inconclusivo",
+};
+
+export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
+  OPEN: "Aberta",
+  IN_REVIEW: "Em análise",
+  WAITING_ADDITIONAL_INFORMATION: "Aguardando informações",
+  RESOLVED: "Resolvida",
+  REJECTED: "Indeferida",
+  CANCELLED: "Cancelada",
+};
+
+export const ALERT_SEVERITY_LABELS: Record<AlertSeverity, string> = {
+  INFO: "Informativo",
+  LOW: "Baixa",
+  MEDIUM: "Média",
+  HIGH: "Alta",
+  CRITICAL: "Crítica",
+};
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  SUPER_ADMIN: "Super Administrador",
+  INTERNAL_ADMIN: "Administrador Interno",
+  INTERNAL_SUPERVISOR: "Supervisor",
+  INTERNAL_ANALYST: "Analista",
+  CLIENT_ADMIN: "Administrador da Empresa",
+  CLIENT_USER: "Usuário da Empresa",
+};
+
+export const PRIORITY_LABELS: Record<RequestPriority, string> = {
+  LOW: "Baixa",
+  NORMAL: "Normal",
+  HIGH: "Alta",
+  URGENT: "Urgente",
+};
+
+export const CLIENT_VISIBLE_STATUSES: RequestStatus[] = [
+  "RECEIVED",
+  "PROCESSING",
+  "WAITING_HUMAN_REVIEW",
+  "WAITING_CLINIC_CONTACT",
+  "CLINIC_CONTACTED",
+  "WAITING_EXTERNAL_RESPONSE",
+  "SUPERVISOR_REVIEW",
+  "FINAL_REPORT_READY",
+  "VALIDATED",
+  "VALIDATED_WITH_REMARKS",
+  "INCONCLUSIVE",
+  "INCONSISTENT",
+  "NOT_CONFIRMED",
+  "NOT_RECOGNIZED_BY_INSTITUTION",
+  "CANCELLED",
+  "EXPIRED",
+  "CONTESTED",
+  "REOPENED",
+];
+
+export const INTERNAL_ROLES: UserRole[] = [
+  "SUPER_ADMIN",
+  "INTERNAL_ADMIN",
+  "INTERNAL_SUPERVISOR",
+  "INTERNAL_ANALYST",
+];
+
+export const CLIENT_ROLES: UserRole[] = ["CLIENT_ADMIN", "CLIENT_USER"];

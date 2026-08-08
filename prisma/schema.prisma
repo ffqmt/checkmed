@@ -1,0 +1,988 @@
+// MedCheck — Prisma schema
+// PostgreSQL hosted on Supabase. See README for setup instructions.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum OrganizationStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  INTERNAL_ADMIN
+  INTERNAL_SUPERVISOR
+  INTERNAL_ANALYST
+  CLIENT_ADMIN
+  CLIENT_USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  INVITED
+  BLOCKED
+}
+
+enum SubmissionChannel {
+  WEB_UPLOAD
+  API
+  EMAIL
+  WHATSAPP
+  MANUAL
+}
+
+enum RequestPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum RequestStatus {
+  RECEIVED
+  PROCESSING
+  OCR_RUNNING
+  OCR_COMPLETED
+  DATA_EXTRACTED
+  AUTO_VALIDATION_RUNNING
+  WAITING_HUMAN_REVIEW
+  MANUAL_REVIEW
+  WAITING_CLINIC_CONTACT
+  CLINIC_CONTACTED
+  WAITING_EXTERNAL_RESPONSE
+  SUPERVISOR_REVIEW
+  FINAL_REPORT_READY
+  VALIDATED
+  VALIDATED_WITH_REMARKS
+  INCONCLUSIVE
+  INCONSISTENT
+  NOT_CONFIRMED
+  NOT_RECOGNIZED_BY_INSTITUTION
+  CANCELLED
+  EXPIRED
+  CONTESTED
+  REOPENED
+}
+
+enum FinalResult {
+  VALIDATED
+  VALIDATED_WITH_REMARKS
+  INCONCLUSIVE
+  INCONSISTENT
+  NOT_CONFIRMED
+  NOT_RECOGNIZED_BY_INSTITUTION
+}
+
+enum RiskLevel {
+  VERY_LOW
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DocumentFileType {
+  PDF
+  JPG
+  JPEG
+  PNG
+}
+
+enum VerificationStatus {
+  PENDING
+  VALIDATED
+  NOT_FOUND
+  DIVERGENT
+  INCONCLUSIVE
+  QUERY_ERROR
+}
+
+enum QrCodeStatus {
+  NOT_PRESENT
+  PENDING
+  VALID
+  INVALID
+  UNREACHABLE
+  DOMAIN_SUSPICIOUS
+  DATA_MISMATCH
+  INCONCLUSIVE
+}
+
+enum TechnicalAnalysisStatus {
+  PENDING
+  COMPLETED
+  INCONCLUSIVE
+  ERROR
+}
+
+enum SimilarityMatchType {
+  EXACT_FILE_HASH
+  VISUAL_SIMILARITY
+  TEXT_SIMILARITY
+  STAMP_SIMILARITY
+  SIGNATURE_SIMILARITY
+  LAYOUT_SIMILARITY
+}
+
+enum AlertSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskAlertType {
+  CRM_NOT_FOUND
+  DOCTOR_NAME_DIVERGENT
+  CRM_UF_DIVERGENT
+  CLINIC_NOT_FOUND
+  CLINIC_DATA_DIVERGENT
+  PHONE_INVALID
+  QR_CODE_INVALID
+  QR_CODE_DOMAIN_SUSPICIOUS
+  AUTHENTICATION_DATA_MISMATCH
+  FUTURE_ISSUE_DATE
+  ABSENCE_PERIOD_INCONSISTENT
+  METADATA_SUSPICIOUS
+  PDF_LAYER_SUSPICIOUS
+  FONT_INCONSISTENCY
+  IMAGE_COMPRESSION_INCONSISTENCY
+  STAMP_SIGNATURE_INCONSISTENCY
+  POSSIBLE_AI_GENERATION
+  SIMILAR_TO_PREVIOUS_INCONSISTENT_DOCUMENT
+  INSUFFICIENT_INFORMATION
+  LOW_OCR_CONFIDENCE
+  CLINIC_CONFIRMATION_REQUIRED
+  MANUAL_REVIEW_REQUIRED
+}
+
+enum ContactType {
+  PHONE
+  EMAIL
+  WHATSAPP
+  PORTAL
+  OTHER
+}
+
+enum ContactResult {
+  CONFIRMED_ISSUANCE
+  DENIED_ISSUANCE
+  NOT_FOUND
+  REQUESTED_PATIENT_AUTHORIZATION
+  NO_RESPONSE
+  INVALID_CONTACT
+  CALL_BACK_LATER
+  OTHER
+}
+
+enum WhatsAppProvider {
+  META_CLOUD_API
+  ZAPI
+  TWILIO
+  OTHER
+}
+
+enum WhatsAppIntegrationStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  PENDING_SETUP
+}
+
+enum WhatsAppDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum WhatsAppMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  RECEIVED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+  WEBHOOK
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  READ
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum WebhookEndpointStatus {
+  ACTIVE
+  INACTIVE
+  FAILING
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+enum TimelineEventType {
+  REQUEST_CREATED
+  FILE_UPLOADED
+  FILE_HASH_CALCULATED
+  OCR_STARTED
+  OCR_COMPLETED
+  DATA_EXTRACTED
+  DOCTOR_VERIFICATION_STARTED
+  DOCTOR_VERIFICATION_COMPLETED
+  CLINIC_VERIFICATION_STARTED
+  CLINIC_VERIFICATION_COMPLETED
+  QR_CODE_VERIFICATION_COMPLETED
+  TECHNICAL_ANALYSIS_COMPLETED
+  FINGERPRINT_GENERATED
+  SIMILARITY_CHECK_COMPLETED
+  RISK_SCORE_CALCULATED
+  STATUS_CHANGED
+  CONTACT_ATTEMPT_REGISTERED
+  WHATSAPP_MESSAGE_SENT
+  EMAIL_SENT
+  HUMAN_REVIEW_STARTED
+  SUPERVISOR_REVIEW_STARTED
+  FINAL_REPORT_GENERATED
+  REQUEST_COMPLETED
+  REQUEST_CONTESTED
+  REQUEST_REOPENED
+}
+
+enum DisputeStatus {
+  OPEN
+  IN_REVIEW
+  WAITING_ADDITIONAL_INFORMATION
+  RESOLVED
+  REJECTED
+  CANCELLED
+}
+
+enum DataPrivacyRequestType {
+  ACCESS
+  CORRECTION
+  ANONYMIZATION
+  DELETION
+  EXPORT
+}
+
+enum DataPrivacyRequestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+// ============================================================================
+// ORGANIZATIONS & USERS
+// ============================================================================
+
+model Organization {
+  id                String             @id @default(cuid())
+  name              String
+  legalName         String
+  tradeName         String?
+  cnpj              String             @unique
+  email             String
+  phone             String?
+  address           String?
+  status            OrganizationStatus @default(TRIAL)
+  slaHours          Int                @default(48)
+  dataRetentionDays Int                @default(365)
+  logoUrl           String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  users               User[]
+  requests            MedicalCertificateRequest[]
+  whatsAppIntegration WhatsAppIntegration?
+  whatsAppMessages    WhatsAppMessage[]
+  notifications       Notification[]
+  notificationPrefs   NotificationPreference[]
+  apiKeys             ApiKey[]
+  webhookEndpoints    WebhookEndpoint[]
+  auditLogs           AuditLog[]
+  dataRetentionPolicy DataRetentionPolicy?
+  dataPrivacyRequests DataPrivacyRequest[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  name           String
+  email          String        @unique
+  phone          String?
+  passwordHash   String
+  role           UserRole
+  status         UserStatus    @default(ACTIVE)
+  lastLoginAt    DateTime?
+  mfaEnabled     Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  submittedRequests   MedicalCertificateRequest[] @relation("SubmittedBy")
+  assignedRequests    MedicalCertificateRequest[] @relation("AssignedTo")
+  supervisedRequests  MedicalCertificateRequest[] @relation("SupervisedBy")
+  uploadedFiles       DocumentFile[]
+  contactAttempts     ContactAttempt[]
+  auditLogs           AuditLog[]
+  timelineEvents      RequestTimelineEvent[]
+  notifications       Notification[]
+  notificationPrefs   NotificationPreference[]
+  generatedReports    FinalReport[]               @relation("GeneratedBy")
+  approvedReports     FinalReport[]               @relation("ApprovedBy")
+  openedDisputes      Dispute[]                   @relation("DisputeOpenedBy")
+  assignedDisputes    Dispute[]                   @relation("DisputeAssignedTo")
+  dataPrivacyRequests DataPrivacyRequest[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// ============================================================================
+// CERTIFICATE REQUEST
+// ============================================================================
+
+model MedicalCertificateRequest {
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  submittedByUserId String
+  submittedBy       User         @relation("SubmittedBy", fields: [submittedByUserId], references: [id])
+  assignedToUserId  String?
+  assignedTo        User?        @relation("AssignedTo", fields: [assignedToUserId], references: [id])
+  supervisorUserId  String?
+  supervisor        User?        @relation("SupervisedBy", fields: [supervisorUserId], references: [id])
+
+  employeeName           String
+  employeeDocumentMasked String
+  employeeRegistration   String?
+  employeeEmail          String?
+
+  receivedByCompanyAt DateTime
+  submissionChannel   SubmissionChannel @default(WEB_UPLOAD)
+  status              RequestStatus     @default(RECEIVED)
+  priority            RequestPriority   @default(NORMAL)
+  slaDueAt            DateTime?
+  completedAt         DateTime?
+
+  finalResult     FinalResult?
+  confidenceScore Int?
+  riskLevel       RiskLevel?
+
+  clientVisibleSummary String?
+  internalNotes        String?
+
+  consentOrLegalBasis String
+  treatmentPurpose    String
+  retentionUntil      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents           DocumentFile[]
+  extractedData       ExtractedData?
+  doctorVerification  DoctorVerification?
+  clinicVerification  ClinicVerification?
+  qrCodeVerification  QrCodeVerification?
+  technicalAnalysis   TechnicalAnalysis?
+  fingerprint         DocumentFingerprint?
+  similarityMatches   SimilarityMatch[]      @relation("SourceRequest")
+  matchedBySimilarity SimilarityMatch[]      @relation("MatchedRequest")
+  riskAnalysis        RiskAnalysis?
+  contactAttempts     ContactAttempt[]
+  whatsAppMessages    WhatsAppMessage[]
+  notifications       Notification[]
+  timelineEvents      RequestTimelineEvent[]
+  auditLogs           AuditLog[]
+  finalReport         FinalReport?
+  disputes            Dispute[]
+  webhookDeliveries   WebhookDelivery[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([assignedToUserId])
+  @@map("certificate_requests")
+}
+
+model DocumentFile {
+  id                String                    @id @default(cuid())
+  requestId         String
+  request           MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+  storageBucket     String
+  storagePath       String
+  originalFileName  String
+  fileType          DocumentFileType
+  mimeType          String
+  fileSize          Int
+  sha256Hash        String
+  perceptualHash    String?
+  visualFingerprint String?
+  uploadedByUserId  String
+  uploadedBy        User                      @relation(fields: [uploadedByUserId], references: [id])
+  metadataJson      Json?
+  pageCount         Int?
+  isEncrypted       Boolean                   @default(false)
+  deletedAt         DateTime?
+  createdAt         DateTime                  @default(now())
+
+  @@index([requestId])
+  @@map("document_files")
+}
+
+// ============================================================================
+// EXTRACTION
+// ============================================================================
+
+model ExtractedData {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  rawText              String?
+  doctorName           String?
+  doctorCrm            String?
+  doctorCrmUf          String?
+  certificateIssueDate DateTime?
+  absenceDays          Int?
+  absenceStartDate     DateTime?
+  absenceEndDate       DateTime?
+  clinicName           String?
+  clinicCnpj           String?
+  clinicCnes           String?
+  clinicAddress        String?
+  clinicPhone          String?
+  clinicEmail          String?
+  cidCode              String?
+  qrCodeContent        String?
+  authenticationUrl    String?
+
+  confidenceJson         Json?
+  extractionWarningsJson Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("extracted_data")
+}
+
+// ============================================================================
+// DOCTOR & CLINIC VERIFICATION
+// ============================================================================
+
+model DoctorVerification {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  informedDoctorName String?
+  informedCrm        String?
+  informedCrmUf      String?
+
+  officialDoctorName String?
+  officialCrm        String?
+  officialCrmUf      String?
+  registrationStatus String?
+  specialty          String?
+
+  sourceName      String?
+  sourceUrl       String?
+  matchScore      Int?
+  status          VerificationStatus @default(PENDING)
+  checkedAt       DateTime?
+  rawResponseJson Json?
+  notes           String?
+
+  @@map("doctor_verifications")
+}
+
+model ClinicVerification {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  informedClinicName String?
+  informedCnpj       String?
+  informedCnes       String?
+  informedAddress    String?
+  informedPhone      String?
+  informedEmail      String?
+
+  officialName    String?
+  officialCnpj    String?
+  officialCnes    String?
+  officialAddress String?
+  officialPhone   String?
+  officialEmail   String?
+  website         String?
+
+  sourceName      String?
+  sourceUrl       String?
+  matchScore      Int?
+  status          VerificationStatus @default(PENDING)
+  checkedAt       DateTime?
+  rawResponseJson Json?
+  notes           String?
+
+  @@map("clinic_verifications")
+}
+
+// ============================================================================
+// QR CODE
+// ============================================================================
+
+model QrCodeVerification {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  qrCodeContent            String?
+  authenticationUrl        String?
+  domain                   String?
+  isDomainTrusted          Boolean?
+  httpStatus               Int?
+  extractedPageDataJson    Json?
+  screenshotEvidenceFileId String?
+  matchScore               Int?
+  status                   QrCodeStatus @default(NOT_PRESENT)
+  checkedAt                DateTime?
+  notes                    String?
+
+  @@map("qr_code_verifications")
+}
+
+// ============================================================================
+// TECHNICAL / FORENSICS ANALYSIS
+// ============================================================================
+
+model TechnicalAnalysis {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  metadataRiskScore                Int?
+  manipulationRiskScore            Int?
+  aiGenerationRiskScore            Int?
+  compressionInconsistencyScore    Int?
+  fontInconsistencyScore           Int?
+  layerInconsistencyScore          Int?
+  signatureStampInconsistencyScore Int?
+
+  findingsJson Json?
+  status       TechnicalAnalysisStatus @default(PENDING)
+  analyzedAt   DateTime?
+  notes        String?
+
+  // Phase 2: raw response from an external AI-generation/deepfake detection
+  // vendor (e.g. Sightengine), when configured — kept as-is for audit and to
+  // avoid re-deriving vendor-specific fields into our own schema.
+  externalProviderName        String?
+  externalProviderResponseJson Json?
+
+  @@map("technical_analyses")
+}
+
+// ============================================================================
+// FINGERPRINT & SIMILARITY
+// ============================================================================
+
+model DocumentFingerprint {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  fileHash          String
+  perceptualHash    String?
+  layoutHash        String?
+  textHash          String?
+  stampHash         String?
+  signatureHash     String?
+  normalizedText    String?
+  similarityGroupId String?
+  createdAt         DateTime @default(now())
+
+  @@index([similarityGroupId])
+  @@map("document_fingerprints")
+}
+
+model SimilarityMatch {
+  id               String                    @id @default(cuid())
+  requestId        String
+  request          MedicalCertificateRequest @relation("SourceRequest", fields: [requestId], references: [id])
+  matchedRequestId String
+  matchedRequest   MedicalCertificateRequest @relation("MatchedRequest", fields: [matchedRequestId], references: [id])
+  matchType        SimilarityMatchType
+  similarityScore  Int
+  explanation      String?
+  createdAt        DateTime                  @default(now())
+
+  @@index([requestId])
+  @@map("similarity_matches")
+}
+
+// ============================================================================
+// RISK ANALYSIS
+// ============================================================================
+
+model RiskAnalysis {
+  id        String                    @id @default(cuid())
+  requestId String                    @unique
+  request   MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+
+  score                  Int
+  riskLevel              RiskLevel
+  positiveIndicatorsJson Json?
+  negativeIndicatorsJson Json?
+  summary                String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  alerts RiskAlert[]
+
+  @@map("risk_analyses")
+}
+
+model RiskAlert {
+  id              String        @id @default(cuid())
+  riskAnalysisId  String
+  riskAnalysis    RiskAnalysis  @relation(fields: [riskAnalysisId], references: [id])
+  type            RiskAlertType
+  severity        AlertSeverity
+  title           String
+  description     String
+  isClientVisible Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+
+  @@index([riskAnalysisId])
+  @@map("risk_alerts")
+}
+
+// ============================================================================
+// CONTACT WITH CLINICS
+// ============================================================================
+
+model ContactAttempt {
+  id                  String                    @id @default(cuid())
+  requestId           String
+  request             MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+  contactType         ContactType
+  contactTarget       String
+  contactValue        String
+  attemptedAt         DateTime
+  responsibleUserId   String
+  responsibleUser     User                      @relation(fields: [responsibleUserId], references: [id])
+  contactedPersonName String?
+  contactedPersonRole String?
+  result              ContactResult
+  notes               String?
+  evidenceFileId      String?
+  isClientVisible     Boolean                   @default(false)
+  createdAt           DateTime                  @default(now())
+
+  @@index([requestId])
+  @@map("contact_attempts")
+}
+
+// ============================================================================
+// WHATSAPP
+// ============================================================================
+
+model WhatsAppIntegration {
+  id                   String                    @id @default(cuid())
+  organizationId       String                    @unique
+  organization         Organization              @relation(fields: [organizationId], references: [id])
+  provider             WhatsAppProvider
+  phoneNumberId        String?
+  businessAccountId    String?
+  accessTokenEncrypted String?
+  webhookVerifyToken   String?
+  status               WhatsAppIntegrationStatus @default(PENDING_SETUP)
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  @@map("whatsapp_integrations")
+}
+
+model WhatsAppMessage {
+  id                String                     @id @default(cuid())
+  organizationId    String
+  organization      Organization               @relation(fields: [organizationId], references: [id])
+  requestId         String?
+  request           MedicalCertificateRequest? @relation(fields: [requestId], references: [id])
+  direction         WhatsAppDirection
+  fromNumber        String
+  toNumber          String
+  templateName      String?
+  messageBody       String
+  providerMessageId String?
+  status            WhatsAppMessageStatus      @default(QUEUED)
+  errorMessage      String?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  createdAt         DateTime                   @default(now())
+
+  @@index([organizationId])
+  @@index([requestId])
+  @@map("whatsapp_messages")
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id             String                     @id @default(cuid())
+  organizationId String
+  organization   Organization               @relation(fields: [organizationId], references: [id])
+  userId         String?
+  user           User?                      @relation(fields: [userId], references: [id])
+  requestId      String?
+  request        MedicalCertificateRequest? @relation(fields: [requestId], references: [id])
+  channel        NotificationChannel
+  title          String
+  message        String
+  status         NotificationStatus         @default(QUEUED)
+  readAt         DateTime?
+  createdAt      DateTime                   @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                              String       @id @default(cuid())
+  organizationId                  String
+  organization                    Organization @relation(fields: [organizationId], references: [id])
+  userId                          String?
+  user                            User?        @relation(fields: [userId], references: [id])
+  notifyOnRequestReceived         Boolean      @default(true)
+  notifyOnProcessingStarted       Boolean      @default(true)
+  notifyOnWaitingExternalResponse Boolean      @default(true)
+  notifyOnCompleted               Boolean      @default(true)
+  notifyOnInconsistency           Boolean      @default(true)
+  channelsJson                    Json?
+
+  @@unique([organizationId, userId])
+  @@map("notification_preferences")
+}
+
+// ============================================================================
+// PUBLIC API & WEBHOOKS
+// ============================================================================
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  keyHash        String       @unique
+  keyPrefix      String
+  status         ApiKeyStatus @default(ACTIVE)
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  expiresAt      DateTime?
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+model WebhookEndpoint {
+  id             String                @id @default(cuid())
+  organizationId String
+  organization   Organization          @relation(fields: [organizationId], references: [id])
+  url            String
+  secret         String
+  eventsJson     Json
+  status         WebhookEndpointStatus @default(ACTIVE)
+  createdAt      DateTime              @default(now())
+
+  deliveries WebhookDelivery[]
+
+  @@index([organizationId])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id                String                     @id @default(cuid())
+  webhookEndpointId String
+  webhookEndpoint   WebhookEndpoint            @relation(fields: [webhookEndpointId], references: [id])
+  requestId         String?
+  request           MedicalCertificateRequest? @relation(fields: [requestId], references: [id])
+  eventType         String
+  payloadJson       Json
+  status            WebhookDeliveryStatus      @default(PENDING)
+  responseStatus    Int?
+  responseBody      String?
+  attemptCount      Int                        @default(0)
+  nextRetryAt       DateTime?
+  createdAt         DateTime                   @default(now())
+
+  @@index([webhookEndpointId])
+  @@map("webhook_deliveries")
+}
+
+// ============================================================================
+// TIMELINE & AUDIT
+// ============================================================================
+
+model RequestTimelineEvent {
+  id              String                    @id @default(cuid())
+  requestId       String
+  request         MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+  userId          String?
+  user            User?                     @relation(fields: [userId], references: [id])
+  eventType       TimelineEventType
+  title           String
+  description     String?
+  isClientVisible Boolean                   @default(false)
+  metadataJson    Json?
+  createdAt       DateTime                  @default(now())
+
+  @@index([requestId])
+  @@map("request_timeline_events")
+}
+
+model AuditLog {
+  id               String                     @id @default(cuid())
+  organizationId   String?
+  organization     Organization?              @relation(fields: [organizationId], references: [id])
+  userId           String?
+  user             User?                      @relation(fields: [userId], references: [id])
+  requestId        String?
+  request          MedicalCertificateRequest? @relation(fields: [requestId], references: [id])
+  action           String
+  entityType       String
+  entityId         String?
+  previousDataJson Json?
+  newDataJson      Json?
+  ipAddress        String?
+  userAgent        String?
+  createdAt        DateTime                   @default(now())
+
+  @@index([organizationId])
+  @@index([requestId])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// FINAL REPORT
+// ============================================================================
+
+model FinalReport {
+  id                  String                    @id @default(cuid())
+  requestId           String                    @unique
+  request             MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+  result              FinalResult
+  confidenceScore     Int
+  riskLevel           RiskLevel
+  executiveSummary    String
+  methodsUsedJson     Json
+  verifiedDataJson    Json
+  evidenceSummaryJson Json
+  limitations         String?
+  clientVisibleNotes  String?
+  internalNotes       String?
+  generatedByUserId   String
+  generatedBy         User                      @relation("GeneratedBy", fields: [generatedByUserId], references: [id])
+  approvedByUserId    String?
+  approvedBy          User?                     @relation("ApprovedBy", fields: [approvedByUserId], references: [id])
+  pdfStoragePath      String?
+  generatedAt         DateTime                  @default(now())
+  approvedAt          DateTime?
+
+  @@map("final_reports")
+}
+
+// ============================================================================
+// DISPUTES
+// ============================================================================
+
+model Dispute {
+  id               String                    @id @default(cuid())
+  requestId        String
+  request          MedicalCertificateRequest @relation(fields: [requestId], references: [id])
+  openedByUserId   String
+  openedBy         User                      @relation("DisputeOpenedBy", fields: [openedByUserId], references: [id])
+  reason           String
+  description      String
+  status           DisputeStatus             @default(OPEN)
+  resolution       String?
+  assignedToUserId String?
+  assignedTo       User?                     @relation("DisputeAssignedTo", fields: [assignedToUserId], references: [id])
+  createdAt        DateTime                  @default(now())
+  resolvedAt       DateTime?
+
+  @@index([requestId])
+  @@map("disputes")
+}
+
+// ============================================================================
+// LGPD / RETENTION / PRIVACY
+// ============================================================================
+
+model DataRetentionPolicy {
+  id              String       @id @default(cuid())
+  organizationId  String       @unique
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  retentionDays   Int          @default(365)
+  autoAnonymize   Boolean      @default(false)
+  autoDeleteFiles Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@map("data_retention_policies")
+}
+
+model DataPrivacyRequest {
+  id                    String                   @id @default(cuid())
+  organizationId        String
+  organization          Organization             @relation(fields: [organizationId], references: [id])
+  requestedByUserId     String
+  requestedBy           User                     @relation(fields: [requestedByUserId], references: [id])
+  requestType           DataPrivacyRequestType
+  subjectName           String
+  subjectDocumentMasked String
+  status                DataPrivacyRequestStatus @default(PENDING)
+  notes                 String?
+  createdAt             DateTime                 @default(now())
+  completedAt           DateTime?
+
+  @@index([organizationId])
+  @@map("data_privacy_requests")
+}
