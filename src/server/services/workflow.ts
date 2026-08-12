@@ -4,8 +4,7 @@ import { recordAuditLog } from "@/server/audit";
 import { assignLeastBusyUser } from "@/server/assignment";
 import { notificationService } from "./notification.service";
 import { dispatchWebhookEvent } from "./webhook-dispatch.service";
-import { ocrService } from "./ocr.service";
-import { extractionService } from "./extraction.service";
+import { documentIntelligenceService } from "./document-intelligence.service";
 import { doctorRegistryService } from "./doctor-registry.service";
 import { clinicRegistryService } from "./clinic-registry.service";
 import { qrCodeVerificationService } from "./qrcode.service";
@@ -49,7 +48,8 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
   await setStatus(requestId, "OCR_RUNNING");
   await recordTimelineEvent({ requestId, eventType: "OCR_STARTED", title: "Leitura do documento iniciada", isClientVisible: false });
 
-  const ocrResult = await ocrService.extractText({ buffer, mimeType: file.mimeType });
+  const intelligence = await documentIntelligenceService.analyze({ buffer, mimeType: file.mimeType });
+  const ocrResult = intelligence.ocr;
 
   await setStatus(requestId, "OCR_COMPLETED");
   await recordTimelineEvent({
@@ -62,7 +62,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
   });
 
   // 2. Structured extraction ------------------------------------------------
-  const structured = await extractionService.extractStructuredData(ocrResult.rawText, { mimeType: file.mimeType });
+  const structured = intelligence.extraction;
 
   await prisma.extractedData.create({
     data: {
@@ -207,7 +207,12 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
   await recordTimelineEvent({ requestId, eventType: "QR_CODE_VERIFICATION_COMPLETED", title: "Verificação de QR Code concluída", isClientVisible: false });
 
   // 5. Technical / forensic analysis ------------------------------------------
-  const findings = await documentForensicsService.produceTechnicalFindings({ buffer, mimeType: file.mimeType });
+  const fileFindings = await documentForensicsService.produceTechnicalFindings({ buffer, mimeType: file.mimeType });
+  const findings = {
+    ...fileFindings,
+    contentAuthenticityRiskScore: intelligence.contentAuthenticityRiskScore,
+    findings: [...fileFindings.findings, ...intelligence.contentFindings],
+  };
   await prisma.technicalAnalysis.create({
     data: {
       requestId,
@@ -218,6 +223,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
       fontInconsistencyScore: findings.fontInconsistencyScore,
       layerInconsistencyScore: findings.layerInconsistencyScore,
       signatureStampInconsistencyScore: findings.signatureStampInconsistencyScore,
+      contentAuthenticityRiskScore: findings.contentAuthenticityRiskScore,
       findingsJson: findings.findings,
       status: findings.status,
       analyzedAt: new Date(),

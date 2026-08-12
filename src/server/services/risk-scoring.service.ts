@@ -173,6 +173,26 @@ export class DefaultRiskScoringService implements RiskScoringService {
           isClientVisible: false,
         });
       }
+
+      score -= tech.contentAuthenticityRiskScore * 0.28;
+      if (tech.contentAuthenticityRiskScore >= 55) {
+        negatives.push("Conteúdo do documento apresenta características que fogem do padrão esperado.");
+        alerts.push({
+          type: "CONTENT_AUTHENTICITY_CONCERN",
+          severity: "HIGH",
+          title: "Indícios no conteúdo do documento",
+          description: "A leitura do documento identificou elementos de texto ou layout fora do padrão esperado para este tipo de documento.",
+          isClientVisible: false,
+        });
+      } else if (tech.contentAuthenticityRiskScore >= 30) {
+        alerts.push({
+          type: "CONTENT_AUTHENTICITY_CONCERN",
+          severity: "MEDIUM",
+          title: "Indícios moderados no conteúdo do documento",
+          description: "A leitura do documento identificou elementos leves a moderados que recomendam atenção.",
+          isClientVisible: false,
+        });
+      }
     }
 
     // --- OCR confidence -----------------------------------------------------

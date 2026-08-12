@@ -108,11 +108,21 @@ export type TechnicalFindings = {
   fontInconsistencyScore: number;
   layerInconsistencyScore: number;
   signatureStampInconsistencyScore: number;
+  /** Phase 3: content-based red flags read from the document's own text/layout by a vision-capable LLM (e.g. an unfilled signature/CRM field, a malformed CPF, generic template boilerplate) — distinct from the pixel/metadata signals above. 0 when the extraction step didn't run a real provider. */
+  contentAuthenticityRiskScore: number;
   findings: Array<{ area: string; description: string; severity: "info" | "low" | "medium" | "high" }>;
   status: "COMPLETED" | "INCONCLUSIVE" | "ERROR";
   /** Set when a Phase 2 external vendor (e.g. Sightengine) actually answered — null when only the free metadata heuristic ran. */
   externalProviderName: string | null;
   externalProviderResponseJson: Record<string, Prisma.InputJsonValue> | null;
+};
+
+/** Phase 3: real document-intelligence result — one vision-model pass that both transcribes the document and extracts structured fields, so extraction is grounded in the actual uploaded file instead of a canned template. */
+export type DocumentIntelligenceResult = {
+  ocr: OcrResult;
+  extraction: ExtractedMedicalCertificateData;
+  contentAuthenticityRiskScore: number;
+  contentFindings: Array<{ area: string; description: string; severity: "info" | "low" | "medium" | "high" }>;
 };
 
 export type AiContentDetectionResult = {

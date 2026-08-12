@@ -195,6 +195,9 @@ export class RealDocumentForensicsService implements DocumentForensicsService {
       fontInconsistencyScore,
       layerInconsistencyScore,
       signatureStampInconsistencyScore: 0,
+      // Set by the caller from the document-intelligence extraction step — a
+      // content/text signal, unrelated to the pixel/metadata analysis done here.
+      contentAuthenticityRiskScore: 0,
       findings,
       status,
       externalProviderName,

@@ -98,53 +98,151 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
         </TabsList>
 
         {/* Overview */}
-        <TabsContent value="overview" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-base">Resumo</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-muted-foreground">Enviado por</p>
-                <p className="font-medium">{request.submittedBy.name}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Canal</p>
-                <p className="font-medium">{request.submissionChannel}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Analista responsável</p>
-                <p className="font-medium">{request.assignedTo?.name ?? "Não atribuído"}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Supervisor</p>
-                <p className="font-medium">{request.supervisor?.name ?? "—"}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Recebido pela empresa em</p>
-                <p className="font-medium">{formatDate(request.receivedByCompanyAt)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Base legal</p>
-                <p className="font-medium">{request.consentOrLegalBasis}</p>
-              </div>
-              {request.internalNotes && (
-                <div className="col-span-2">
-                  <p className="text-muted-foreground">Notas internas</p>
-                  <p className="font-medium">{request.internalNotes}</p>
+        <TabsContent value="overview" className="space-y-4">
+          {request.riskAnalysis ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <Card className="flex items-center justify-center lg:col-span-1">
+                <CardContent className="p-5">
+                  <ScoreIndicator score={request.riskAnalysis.score} />
+                </CardContent>
+              </Card>
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-base">O que encontramos</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p>{request.riskAnalysis.summary}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="mb-1 font-medium text-status-success">Indicadores positivos</p>
+                      <ul className="list-inside list-disc space-y-1 text-muted-foreground">
+                        {(request.riskAnalysis.positiveIndicatorsJson as string[] | null)?.map((p, i) => <li key={i}>{p}</li>)}
+                        {((request.riskAnalysis.positiveIndicatorsJson as string[] | null)?.length ?? 0) === 0 && (
+                          <li className="list-none">Nenhum</li>
+                        )}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="mb-1 font-medium text-status-danger">Indicadores negativos</p>
+                      <ul className="list-inside list-disc space-y-1 text-muted-foreground">
+                        {(request.riskAnalysis.negativeIndicatorsJson as string[] | null)?.map((n, i) => <li key={i}>{n}</li>)}
+                        {((request.riskAnalysis.negativeIndicatorsJson as string[] | null)?.length ?? 0) === 0 && (
+                          <li className="list-none">Nenhum</li>
+                        )}
+                      </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              {request.riskAnalysis.alerts.length > 0 && (
+                <Card className="lg:col-span-3">
+                  <CardHeader>
+                    <CardTitle className="text-base">Alertas</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {request.riskAnalysis.alerts.map((a) => (
+                      <div key={a.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                        <div>
+                          <p className="font-medium">{a.title}</p>
+                          <p className="text-muted-foreground">{a.description}</p>
+                        </div>
+                        <Badge variant={a.severity === "CRITICAL" || a.severity === "HIGH" ? "danger" : a.severity === "MEDIUM" ? "warning" : "neutral"}>
+                          {ALERT_SEVERITY_LABELS[a.severity]}
+                        </Badge>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <EmptyState icon={Gauge} title="Score de risco ainda não calculado" description="A análise automática ainda está em andamento ou aguardando revisão." />
+          )}
+
+          {request.technicalAnalysis && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Análise técnica do arquivo</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
+                  <ScoreField label="Metadados" value={request.technicalAnalysis.metadataRiskScore} />
+                  <ScoreField label="Manipulação (geral)" value={request.technicalAnalysis.manipulationRiskScore} />
+                  <ScoreField label="Autenticidade do conteúdo" value={request.technicalAnalysis.contentAuthenticityRiskScore} />
+                  <div className="rounded-lg border border-border p-3">
+                    <ScoreField label="Possível geração por IA" value={request.technicalAnalysis.aiGenerationRiskScore} bare />
+                    <Badge variant="outline" className="mt-1">
+                      {request.technicalAnalysis.externalProviderName ? `Fonte: ${request.technicalAnalysis.externalProviderName}` : "Fonte: metadados"}
+                    </Badge>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-          <Card className="flex items-center justify-center">
-            <CardContent className="p-5">
-              {request.confidenceScore !== null ? (
-                <ScoreIndicator score={request.confidenceScore} />
-              ) : (
-                <p className="text-sm text-muted-foreground">Score ainda não calculado</p>
-              )}
-            </CardContent>
-          </Card>
+                {Array.isArray(request.technicalAnalysis.findingsJson) && (request.technicalAnalysis.findingsJson as unknown[]).length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Observações técnicas</p>
+                    {(request.technicalAnalysis.findingsJson as { area: string; description: string; severity: string }[]).map((f, i) => (
+                      <div key={i} className="rounded-lg border border-border p-3 text-sm">
+                        <p className="font-medium">{f.area}</p>
+                        <p className="text-muted-foreground">{f.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Detalhamento completo em <span className="font-medium">Análise técnica</span>, <span className="font-medium">Médico</span>,{" "}
+                  <span className="font-medium">Clínica</span> e <span className="font-medium">Score de risco</span>.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base">Dados da solicitação</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Enviado por</p>
+                  <p className="font-medium">{request.submittedBy.name}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Canal</p>
+                  <p className="font-medium">{request.submissionChannel}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Analista responsável</p>
+                  <p className="font-medium">{request.assignedTo?.name ?? "Não atribuído"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Supervisor</p>
+                  <p className="font-medium">{request.supervisor?.name ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Recebido pela empresa em</p>
+                  <p className="font-medium">{formatDate(request.receivedByCompanyAt)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Base legal</p>
+                  <p className="font-medium">{request.consentOrLegalBasis}</p>
+                </div>
+                {request.internalNotes && (
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Notas internas</p>
+                    <p className="font-medium">{request.internalNotes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="flex items-center justify-center">
+              <CardContent className="p-5">
+                {request.confidenceScore !== null ? (
+                  <ScoreIndicator score={request.confidenceScore} label="Confiança da leitura (OCR)" />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Score de leitura ainda não calculado</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Document */}
@@ -283,6 +381,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
                 <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3">
                   <ScoreField label="Metadados" value={request.technicalAnalysis.metadataRiskScore} />
                   <ScoreField label="Manipulação (geral)" value={request.technicalAnalysis.manipulationRiskScore} />
+                  <ScoreField label="Autenticidade do conteúdo" value={request.technicalAnalysis.contentAuthenticityRiskScore} />
                   <div className="rounded-lg border border-border p-3">
                     <ScoreField label="Possível geração por IA" value={request.technicalAnalysis.aiGenerationRiskScore} bare />
                     <Badge variant="outline" className="mt-1">

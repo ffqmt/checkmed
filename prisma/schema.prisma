@@ -165,6 +165,7 @@ enum RiskAlertType {
   IMAGE_COMPRESSION_INCONSISTENCY
   STAMP_SIGNATURE_INCONSISTENCY
   POSSIBLE_AI_GENERATION
+  CONTENT_AUTHENTICITY_CONCERN
   SIMILAR_TO_PREVIOUS_INCONSISTENT_DOCUMENT
   INSUFFICIENT_INFORMATION
   LOW_OCR_CONFIDENCE
@@ -601,6 +602,10 @@ model TechnicalAnalysis {
   fontInconsistencyScore           Int?
   layerInconsistencyScore          Int?
   signatureStampInconsistencyScore Int?
+  // Phase 3: content/text-based signal from the vision-based extraction step
+  // (unfilled signature/CRM field, malformed identifiers, template-like
+  // boilerplate) — independent of the pixel/metadata signals above.
+  contentAuthenticityRiskScore     Int?
 
   findingsJson Json?
   status       TechnicalAnalysisStatus @default(PENDING)
