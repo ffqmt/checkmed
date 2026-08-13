@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "RiskAlertType" ADD VALUE 'CID_CODE_INVALID';

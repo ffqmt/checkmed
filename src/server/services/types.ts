@@ -167,6 +167,7 @@ export type RiskScoringInput = {
     absenceEndDate: Date | null;
   } | null;
   ocrConfidence: number | null;
+  cidValidation: { code: string; valid: boolean } | null;
   doctorVerification: { status: string; matchScore: number | null } | null;
   clinicVerification: { status: string; matchScore: number | null } | null;
   qrCodeVerification: { status: string; matchScore: number | null } | null;

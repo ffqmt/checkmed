@@ -230,6 +230,23 @@ export class DefaultRiskScoringService implements RiskScoringService {
       }
     }
 
+    // --- CID-10 code validity -------------------------------------------
+    if (input.cidValidation) {
+      if (input.cidValidation.valid) {
+        positives.push("Código CID informado tem formato e faixa compatíveis com a classificação CID-10.");
+      } else {
+        score -= 10;
+        negatives.push("Código CID informado não corresponde a um formato/faixa reconhecidos da classificação CID-10.");
+        alerts.push({
+          type: "CID_CODE_INVALID",
+          severity: "MEDIUM",
+          title: "Código CID não reconhecido",
+          description: `O código "${input.cidValidation.code}" não corresponde a um formato ou faixa válidos da classificação CID-10 — pode ser um erro de digitação ou leitura, ou um dado inventado.`,
+          isClientVisible: false,
+        });
+      }
+    }
+
     // --- Dates / absence period consistency ---------------------------------
     const extracted = input.extractedData;
     if (extracted?.certificateIssueDate && extracted.certificateIssueDate.getTime() > Date.now() + 86400000) {

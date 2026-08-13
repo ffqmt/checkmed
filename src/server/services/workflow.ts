@@ -12,6 +12,7 @@ import { documentForensicsService } from "./forensics.service";
 import { documentSimilarityService } from "./similarity.service";
 import { riskScoringService } from "./risk-scoring.service";
 import { storageAdapter } from "./storage.service";
+import { validateCid10 } from "@/lib/cid10";
 import type { RequestStatus } from "@prisma/client";
 
 /**
@@ -100,9 +101,54 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
 
   await setStatus(requestId, "AUTO_VALIDATION_RUNNING");
 
-  // 3. Doctor + clinic verification (parallel) -------------------------------
-  await recordTimelineEvent({ requestId, eventType: "DOCTOR_VERIFICATION_STARTED", title: "Validação do médico iniciada" });
+  // 3. Technical / forensic analysis — moved to run first: authenticity of
+  // the file itself (metadata/layers/fonts + AI-generation via Sightengine)
+  // matters more than confirming who issued a document that might not be
+  // genuine to begin with. ---------------------------------------------------
+  const fileFindings = await documentForensicsService.produceTechnicalFindings({ buffer, mimeType: file.mimeType });
+  const findings = {
+    ...fileFindings,
+    contentAuthenticityRiskScore: intelligence.contentAuthenticityRiskScore,
+    findings: [...fileFindings.findings, ...intelligence.contentFindings],
+  };
+  await prisma.technicalAnalysis.create({
+    data: {
+      requestId,
+      metadataRiskScore: findings.metadataRiskScore,
+      manipulationRiskScore: findings.manipulationRiskScore,
+      aiGenerationRiskScore: findings.aiGenerationRiskScore,
+      compressionInconsistencyScore: findings.compressionInconsistencyScore,
+      fontInconsistencyScore: findings.fontInconsistencyScore,
+      layerInconsistencyScore: findings.layerInconsistencyScore,
+      signatureStampInconsistencyScore: findings.signatureStampInconsistencyScore,
+      contentAuthenticityRiskScore: findings.contentAuthenticityRiskScore,
+      findingsJson: findings.findings,
+      status: findings.status,
+      analyzedAt: new Date(),
+      externalProviderName: findings.externalProviderName ?? undefined,
+      externalProviderResponseJson: findings.externalProviderResponseJson ?? undefined,
+    },
+  });
+  await recordTimelineEvent({ requestId, eventType: "TECHNICAL_ANALYSIS_COMPLETED", title: "Análise técnica do arquivo concluída", isClientVisible: false });
+
+  // 4. CID-10 validation — deterministic, free, no vendor. Confirms format
+  // and chapter range, not the full granular catalog (see lib/cid10.ts). ----
+  const cidValidation = structured.cidCode ? { code: structured.cidCode, valid: validateCid10(structured.cidCode).valid } : null;
+  await recordTimelineEvent({
+    requestId,
+    eventType: "STATUS_CHANGED",
+    title: "Código CID verificado",
+    description: !structured.cidCode
+      ? "Nenhum código CID identificado no documento."
+      : cidValidation!.valid
+        ? `Código "${structured.cidCode}" com formato e faixa compatíveis com a classificação CID-10.`
+        : `Código "${structured.cidCode}" não corresponde a um formato/faixa reconhecidos da classificação CID-10.`,
+    isClientVisible: true,
+  });
+
+  // 5. Clinic + doctor verification (parallel) --------------------------------
   await recordTimelineEvent({ requestId, eventType: "CLINIC_VERIFICATION_STARTED", title: "Validação da clínica iniciada" });
+  await recordTimelineEvent({ requestId, eventType: "DOCTOR_VERIFICATION_STARTED", title: "Validação do médico iniciada" });
 
   const [doctorResult, clinicResult] = await Promise.all([
     doctorRegistryService.verifyDoctor(structured.doctorName, structured.doctorCrm, structured.doctorCrmUf),
@@ -177,62 +223,6 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     isClientVisible: true,
   });
 
-  // 4. QR Code / authentication link -----------------------------------------
-  let qrStatus: Awaited<ReturnType<typeof qrCodeVerificationService.validateAuthenticationUrl>> | null = null;
-  let qrOutcome: Awaited<ReturnType<typeof qrCodeVerificationService.comparePageDataWithExtractedData>> | null = null;
-
-  if (structured.authenticationUrl) {
-    qrStatus = await qrCodeVerificationService.validateAuthenticationUrl(structured.authenticationUrl);
-    qrOutcome = await qrCodeVerificationService.comparePageDataWithExtractedData(qrStatus.extractedPageData, {});
-    await prisma.qrCodeVerification.create({
-      data: {
-        requestId,
-        qrCodeContent: structured.qrCodeContent,
-        authenticationUrl: structured.authenticationUrl,
-        domain: qrStatus.domain,
-        isDomainTrusted: qrStatus.isDomainTrusted,
-        httpStatus: qrStatus.httpStatus,
-        extractedPageDataJson: qrStatus.extractedPageData ?? undefined,
-        matchScore: qrOutcome.matchScore,
-        status: !qrStatus.isDomainTrusted ? "DOMAIN_SUSPICIOUS" : qrOutcome.status,
-        checkedAt: new Date(),
-        notes: qrOutcome.notes,
-      },
-    });
-  } else {
-    await prisma.qrCodeVerification.create({
-      data: { requestId, status: "NOT_PRESENT" },
-    });
-  }
-  await recordTimelineEvent({ requestId, eventType: "QR_CODE_VERIFICATION_COMPLETED", title: "Verificação de QR Code concluída", isClientVisible: false });
-
-  // 5. Technical / forensic analysis ------------------------------------------
-  const fileFindings = await documentForensicsService.produceTechnicalFindings({ buffer, mimeType: file.mimeType });
-  const findings = {
-    ...fileFindings,
-    contentAuthenticityRiskScore: intelligence.contentAuthenticityRiskScore,
-    findings: [...fileFindings.findings, ...intelligence.contentFindings],
-  };
-  await prisma.technicalAnalysis.create({
-    data: {
-      requestId,
-      metadataRiskScore: findings.metadataRiskScore,
-      manipulationRiskScore: findings.manipulationRiskScore,
-      aiGenerationRiskScore: findings.aiGenerationRiskScore,
-      compressionInconsistencyScore: findings.compressionInconsistencyScore,
-      fontInconsistencyScore: findings.fontInconsistencyScore,
-      layerInconsistencyScore: findings.layerInconsistencyScore,
-      signatureStampInconsistencyScore: findings.signatureStampInconsistencyScore,
-      contentAuthenticityRiskScore: findings.contentAuthenticityRiskScore,
-      findingsJson: findings.findings,
-      status: findings.status,
-      analyzedAt: new Date(),
-      externalProviderName: findings.externalProviderName ?? undefined,
-      externalProviderResponseJson: findings.externalProviderResponseJson ?? undefined,
-    },
-  });
-  await recordTimelineEvent({ requestId, eventType: "TECHNICAL_ANALYSIS_COMPLETED", title: "Análise técnica do arquivo concluída", isClientVisible: false });
-
   // 6. Fingerprint + similarity -----------------------------------------------
   const fingerprint = await documentSimilarityService.generateFingerprint({ buffer }, ocrResult.rawText);
   await prisma.documentFingerprint.create({
@@ -274,7 +264,38 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     );
   }
 
-  // 7. Risk scoring ------------------------------------------------------------
+  // 7. QR Code / authentication link — a fast, decisive signal when present:
+  // a valid code from a trusted institutional domain is strong corroboration;
+  // deliberately checked late so it lands right before the score that uses it. --
+  let qrStatus: Awaited<ReturnType<typeof qrCodeVerificationService.validateAuthenticationUrl>> | null = null;
+  let qrOutcome: Awaited<ReturnType<typeof qrCodeVerificationService.comparePageDataWithExtractedData>> | null = null;
+
+  if (structured.authenticationUrl) {
+    qrStatus = await qrCodeVerificationService.validateAuthenticationUrl(structured.authenticationUrl);
+    qrOutcome = await qrCodeVerificationService.comparePageDataWithExtractedData(qrStatus.extractedPageData, {});
+    await prisma.qrCodeVerification.create({
+      data: {
+        requestId,
+        qrCodeContent: structured.qrCodeContent,
+        authenticationUrl: structured.authenticationUrl,
+        domain: qrStatus.domain,
+        isDomainTrusted: qrStatus.isDomainTrusted,
+        httpStatus: qrStatus.httpStatus,
+        extractedPageDataJson: qrStatus.extractedPageData ?? undefined,
+        matchScore: qrOutcome.matchScore,
+        status: !qrStatus.isDomainTrusted ? "DOMAIN_SUSPICIOUS" : qrOutcome.status,
+        checkedAt: new Date(),
+        notes: qrOutcome.notes,
+      },
+    });
+  } else {
+    await prisma.qrCodeVerification.create({
+      data: { requestId, status: "NOT_PRESENT" },
+    });
+  }
+  await recordTimelineEvent({ requestId, eventType: "QR_CODE_VERIFICATION_COMPLETED", title: "Verificação de QR Code concluída", isClientVisible: false });
+
+  // 8. Risk scoring ------------------------------------------------------------
   const risk = riskScoringService.score({
     extractedData: {
       absenceDays: structured.absenceDays,
@@ -283,6 +304,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
       absenceEndDate: structured.absenceEndDate,
     },
     ocrConfidence: ocrResult.confidence,
+    cidValidation,
     doctorVerification: { status: doctorResult.status, matchScore: doctorResult.matchScore },
     clinicVerification: { status: clinicResult.status, matchScore: clinicResult.matchScore },
     qrCodeVerification: structured.authenticationUrl
@@ -333,7 +355,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     newData: { score: risk.score, riskLevel: risk.riskLevel, recommendation: risk.recommendation },
   });
 
-  // 8. Automatic decision -------------------------------------------------------
+  // 9. Automatic decision -------------------------------------------------------
   await applyDecision(requestId, risk.recommendation, risk.score, risk.riskLevel, risk.summary);
 }
 
