@@ -14,6 +14,7 @@ import {
   ClipboardList,
   MessageSquare,
   Inbox,
+  Stethoscope,
 } from "lucide-react";
 
 export type NavItem = {
@@ -40,6 +41,7 @@ export const internalNav: NavItem[] = [
 export const adminNav: NavItem[] = [
   { href: "/admin/organizations", label: "Organizações", icon: Building2 },
   { href: "/admin/users", label: "Usuários", icon: Users },
+  { href: "/admin/doctor-registry", label: "Registro de médicos (CRM)", icon: Stethoscope },
   { href: "/admin/whatsapp", label: "Integração WhatsApp", icon: MessageSquare },
   { href: "/admin/api-keys", label: "API Keys", icon: KeyRound },
   { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },

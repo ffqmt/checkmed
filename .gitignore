@@ -43,7 +43,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# raw manually-collected registry data pasted for scripts/import-verified-doctors.ts
+# raw manually-collected CFM registry data for scripts/import-verified-doctors.ts
 # (real doctor names/CRMs — loaded into the database, not meant to live in git history)
 dados.txt
 dados*.txt
+/data/cfm-raw/
