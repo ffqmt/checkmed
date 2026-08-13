@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUploadDropzone } from "@/components/shared/file-upload-dropzone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { beginCertificateRequestUpload, finalizeCertificateRequestUpload } from "@/server/actions/certificate-requests";
-import { getBrowserSupabaseClient } from "@/lib/supabase-browser";
+import { uploadFileToTarget, sha256Hex, storagePathFromUploadTarget } from "@/lib/upload-client";
 
 const LEGAL_BASES = [
   { value: "cumprimento_obrigacao_legal", label: "Cumprimento de obrigação legal (Art. 7º, II)" },
@@ -18,13 +18,6 @@ const LEGAL_BASES = [
   { value: "interesse_legitimo", label: "Interesse legítimo do controlador (Art. 7º, IX)" },
   { value: "consentimento_titular", label: "Consentimento do titular (Art. 7º, I)" },
 ];
-
-async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 export function NewRequestForm() {
   const [file, setFile] = useState<File | null>(null);
@@ -63,23 +56,10 @@ export function NewRequestForm() {
       setProgress("Enviando documento...");
       const buffer = await file.arrayBuffer();
       const { uploadTarget } = begin;
-
-      if (uploadTarget.provider === "supabase") {
-        const { error: uploadError } = await getBrowserSupabaseClient()
-          .storage.from(uploadTarget.bucket)
-          .uploadToSignedUrl(uploadTarget.path, uploadTarget.token, file);
-        if (uploadError) throw uploadError;
-      } else {
-        const response = await fetch(uploadTarget.uploadUrl, {
-          method: "PUT",
-          body: buffer,
-          headers: { "Content-Type": file.type },
-        });
-        if (!response.ok) throw new Error("Falha ao enviar o arquivo.");
-      }
+      await uploadFileToTarget(uploadTarget, file);
 
       setProgress("Concluindo...");
-      const storagePath = uploadTarget.provider === "supabase" ? uploadTarget.path : new URL(uploadTarget.uploadUrl, window.location.origin).searchParams.get("path")!;
+      const storagePath = storagePathFromUploadTarget(uploadTarget);
       const sha256Hash = await sha256Hex(buffer);
 
       await finalizeCertificateRequestUpload({

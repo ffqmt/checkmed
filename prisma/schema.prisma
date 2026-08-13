@@ -461,6 +461,7 @@ model DocumentFile {
   isEncrypted       Boolean                   @default(false)
   deletedAt         DateTime?
   createdAt         DateTime                  @default(now())
+  contactEvidenceFor ContactAttempt?          @relation("ContactEvidence")
 
   @@index([requestId])
   @@map("document_files")
@@ -715,7 +716,8 @@ model ContactAttempt {
   contactedPersonRole String?
   result              ContactResult
   notes               String?
-  evidenceFileId      String?
+  evidenceFileId      String?                   @unique
+  evidenceFile        DocumentFile?             @relation("ContactEvidence", fields: [evidenceFileId], references: [id])
   isClientVisible     Boolean                   @default(false)
   createdAt           DateTime                  @default(now())
 

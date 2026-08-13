@@ -20,6 +20,15 @@ export const createContactAttemptSchema = z.object({
   ]),
   notes: z.string().optional(),
   isClientVisible: z.boolean().default(false),
+  evidence: z
+    .object({
+      storagePath: z.string(),
+      fileName: z.string(),
+      mimeType: z.string(),
+      fileSize: z.number(),
+      sha256Hash: z.string(),
+    })
+    .optional(),
 });
 
 export type CreateContactAttemptInput = z.infer<typeof createContactAttemptSchema>;

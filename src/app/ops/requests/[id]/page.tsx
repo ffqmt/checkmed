@@ -19,7 +19,8 @@ import { ApproveReportButton } from "@/components/requests/approve-report-button
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { VERIFICATION_STATUS_LABELS, QR_STATUS_LABELS, ALERT_SEVERITY_LABELS, FINAL_RESULT_LABELS, PRIORITY_LABELS } from "@/lib/constants";
 import { permissions } from "@/lib/rbac";
-import { FileText, Link2, ScanSearch, Fingerprint, Gauge, Phone, History, ScrollText } from "lucide-react";
+import { FileText, Link2, ScanSearch, Fingerprint, Gauge, Phone, History, ScrollText, Paperclip } from "lucide-react";
+import { storageAdapter } from "@/server/services/storage.service";
 
 export default async function OpsRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,7 +42,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
       fingerprint: true,
       similarityMatches: { include: { matchedRequest: true } },
       riskAnalysis: { include: { alerts: true } },
-      contactAttempts: { include: { responsibleUser: true }, orderBy: { attemptedAt: "desc" } },
+      contactAttempts: { include: { responsibleUser: true, evidenceFile: true }, orderBy: { attemptedAt: "desc" } },
       whatsAppMessages: { orderBy: { createdAt: "asc" } },
       timelineEvents: { orderBy: { createdAt: "asc" }, include: { user: true } },
       auditLogs: { orderBy: { createdAt: "desc" }, take: 50, include: { user: true } },
@@ -520,6 +521,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
                     <p className="mt-1 text-xs text-muted-foreground">
                       {formatDateTime(c.attemptedAt)} · {c.responsibleUser.name}
                     </p>
+                    {c.evidenceFile && <EvidenceFileLink file={c.evidenceFile} />}
                   </CardContent>
                 </Card>
               ))}
@@ -642,4 +644,19 @@ function ScoreField({ label, value, bare }: { label: string; value: number | nul
   );
   if (bare) return content;
   return <div className="rounded-lg border border-border p-3">{content}</div>;
+}
+
+async function EvidenceFileLink({ file }: { file: { storageBucket: string; storagePath: string; originalFileName: string } }) {
+  const signedUrl = await storageAdapter.getSignedUrl(file.storageBucket, file.storagePath, 600);
+  return (
+    <a
+      href={signedUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+    >
+      <Paperclip className="size-3.5" />
+      {file.originalFileName}
+    </a>
+  );
 }

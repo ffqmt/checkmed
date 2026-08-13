@@ -8,8 +8,46 @@ import { recordTimelineEvent } from "@/server/timeline";
 import { notificationService } from "@/server/services/notification.service";
 import { createContactAttemptSchema } from "@/lib/validations/contact-attempt";
 import { permissions } from "@/lib/rbac";
+import { storageAdapter, buildStoragePath, type SignedUploadTarget } from "@/server/services/storage.service";
+import { STORAGE_BUCKETS } from "@/lib/supabase";
+import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/validations/certificate-request";
+import type { DocumentFileType } from "@prisma/client";
 
 const MAX_CONTACT_ATTEMPTS = 3;
+
+function fileTypeFromMime(mime: string): DocumentFileType {
+  if (mime === "application/pdf") return "PDF";
+  if (mime === "image/png") return "PNG";
+  if (mime === "image/jpg") return "JPG";
+  return "JPEG";
+}
+
+export type BeginEvidenceUploadResult = { error: string } | { uploadTarget: SignedUploadTarget; storagePath: string };
+
+/** Same direct-to-storage pattern as the certificate upload — a screenshot can be a few MB, no reason to risk the same Vercel body-size failure twice. */
+export async function beginEvidenceUpload(
+  requestId: string,
+  fileName: string,
+  mimeType: string,
+  fileSize: number,
+): Promise<BeginEvidenceUploadResult> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Sessão inválida.");
+  if (!permissions.reviewAsAnalyst(session.user.role)) {
+    throw new Error("Você não tem permissão para anexar evidências.");
+  }
+
+  if (!ACCEPTED_FILE_TYPES.includes(mimeType)) {
+    return { error: "Formato não suportado. Envie PDF, JPG, JPEG ou PNG." };
+  }
+  if (fileSize > MAX_FILE_SIZE_BYTES) {
+    return { error: "Arquivo maior que o limite permitido de 15MB." };
+  }
+
+  const storagePath = buildStoragePath(requestId, fileName);
+  const uploadTarget = await storageAdapter.createSignedUploadUrl(STORAGE_BUCKETS.evidence, storagePath, 300);
+  return { uploadTarget, storagePath };
+}
 
 export async function createContactAttempt(input: unknown) {
   const session = await auth();
@@ -26,6 +64,24 @@ export async function createContactAttempt(input: unknown) {
 
   const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({ where: { id: data.requestId } });
 
+  let evidenceFileId: string | undefined;
+  if (data.evidence) {
+    const evidenceFile = await prisma.documentFile.create({
+      data: {
+        requestId: data.requestId,
+        storageBucket: STORAGE_BUCKETS.evidence,
+        storagePath: data.evidence.storagePath,
+        originalFileName: data.evidence.fileName,
+        fileType: fileTypeFromMime(data.evidence.mimeType),
+        mimeType: data.evidence.mimeType,
+        fileSize: data.evidence.fileSize,
+        sha256Hash: data.evidence.sha256Hash,
+        uploadedByUserId: session.user.id,
+      },
+    });
+    evidenceFileId = evidenceFile.id;
+  }
+
   const attempt = await prisma.contactAttempt.create({
     data: {
       requestId: data.requestId,
@@ -39,6 +95,7 @@ export async function createContactAttempt(input: unknown) {
       result: data.result,
       notes: data.notes,
       isClientVisible: data.isClientVisible,
+      evidenceFileId,
     },
   });
 
