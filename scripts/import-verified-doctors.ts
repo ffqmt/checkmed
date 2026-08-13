@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "fs";
+import { readFileSync, readdirSync, statSync, watch } from "fs";
 import { join } from "path";
 import { prisma } from "../src/lib/prisma";
 
@@ -88,8 +88,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-async function main() {
-  const path = process.argv[2] ?? "data/cfm-raw";
+async function runImport(path: string): Promise<void> {
   const files = resolveTxtFiles(path);
   if (files.length === 0) {
     console.log(`Nenhum arquivo .txt encontrado em ${path}`);
@@ -109,9 +108,8 @@ async function main() {
   for (const p of allParsed) byKey.set(`${p.crm}_${p.uf}`, p);
   const unique = [...byKey.values()];
 
-  console.log(`\nTotal reconhecido: ${allParsed.length} | únicos (crm+uf): ${unique.length} | linhas ilegíveis: ${totalFailed}`);
+  console.log(`Total reconhecido: ${allParsed.length} | únicos (crm+uf): ${unique.length} | linhas ilegíveis: ${totalFailed}`);
 
-  console.log("Carregando cadastro existente...");
   const existing = await prisma.verifiedDoctor.findMany({
     select: { crm: true, uf: true, officialName: true, registrationStatus: true, specialty: true },
   });
@@ -145,7 +143,6 @@ async function main() {
       skipDuplicates: true,
     });
     created += result.count;
-    console.log(`  criados ${created}/${toCreate.length}...`);
   }
 
   let updated = 0;
@@ -157,7 +154,71 @@ async function main() {
     updated++;
   }
 
-  console.log(`\n=== Concluído: ${created} criados | ${updated} atualizados | ${unique.length - created - updated} sem mudança ===`);
+  console.log(`=== Concluído: ${created} criados | ${updated} atualizados | ${unique.length - created - updated} sem mudança ===`);
+}
+
+/**
+ * Watches the folder and re-imports automatically whenever a .txt is added
+ * or changed — no need to remember to run the command by hand after every
+ * file the browser-console collector drops in. Debounced by 4s of silence
+ * per file before importing, since a browser writes a large download
+ * incrementally and fs.watch fires on every chunk, not just on completion.
+ */
+async function watchAndImport(path: string): Promise<void> {
+  console.log(`Observando ${path} — qualquer .txt novo ou modificado é importado sozinho. Ctrl+C para parar.\n`);
+  await runImport(path);
+
+  const pendingTimers = new Map<string, NodeJS.Timeout>();
+  let importRunning = false;
+  let importQueued = false;
+
+  const runQueuedImport = async () => {
+    if (importRunning) {
+      importQueued = true;
+      return;
+    }
+    importRunning = true;
+    try {
+      console.log(`\n[${new Date().toLocaleTimeString("pt-BR")}] Arquivo novo/alterado detectado — importando...`);
+      await runImport(path);
+    } catch (e) {
+      console.error("Falha ao importar:", e);
+    } finally {
+      importRunning = false;
+      if (importQueued) {
+        importQueued = false;
+        await runQueuedImport();
+      }
+    }
+  };
+
+  watch(path, { persistent: true }, (_eventType, filename) => {
+    if (!filename || !filename.toLowerCase().endsWith(".txt")) return;
+    const existingTimer = pendingTimers.get(filename);
+    if (existingTimer) clearTimeout(existingTimer);
+    pendingTimers.set(
+      filename,
+      setTimeout(() => {
+        pendingTimers.delete(filename);
+        void runQueuedImport();
+      }, 4000),
+    );
+  });
+
+  // Keep the process alive indefinitely.
+  await new Promise(() => {});
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const watchMode = args.includes("--watch");
+  const path = args.find((a) => !a.startsWith("--")) ?? "data/cfm-raw";
+
+  if (watchMode) {
+    await watchAndImport(path);
+  } else {
+    await runImport(path);
+  }
 }
 
 main()
