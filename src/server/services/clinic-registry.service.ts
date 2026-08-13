@@ -1,5 +1,6 @@
 import { simulateLatency, weightedPick, randomInt } from "./mock-utils";
 import type { ClinicVerificationInput, ClinicVerificationResult } from "./types";
+import { BrasilApiClinicRegistryAdapter } from "./adapters/brasilapi-clinic-registry.adapter";
 
 export interface ClinicRegistryService {
   verifyClinic(data: ClinicVerificationInput): Promise<ClinicVerificationResult>;
@@ -115,4 +116,22 @@ export class MockClinicRegistryService implements ClinicRegistryService {
   }
 }
 
-export const clinicRegistryService: ClinicRegistryService = new MockClinicRegistryService();
+/**
+ * Provider selection mirrors ai-detection.service.ts / document-intelligence.service.ts.
+ * CLINIC_REGISTRY_PROVIDER unset/"MOCK" keeps the randomized mock above.
+ * "BRASILAPI" switches to a real, free Receita Federal CNPJ lookup — see
+ * adapters/brasilapi-clinic-registry.adapter.ts.
+ */
+class ProviderSelectedClinicRegistryService implements ClinicRegistryService {
+  private mock = new MockClinicRegistryService();
+
+  async verifyClinic(data: ClinicVerificationInput): Promise<ClinicVerificationResult> {
+    const provider = (process.env.CLINIC_REGISTRY_PROVIDER ?? "MOCK").toUpperCase();
+    if (provider === "BRASILAPI") {
+      return new BrasilApiClinicRegistryAdapter().verifyClinic(data);
+    }
+    return this.mock.verifyClinic(data);
+  }
+}
+
+export const clinicRegistryService: ClinicRegistryService = new ProviderSelectedClinicRegistryService();

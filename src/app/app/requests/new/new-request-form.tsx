@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploadDropzone } from "@/components/shared/file-upload-dropzone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createCertificateRequest } from "@/server/actions/certificate-requests";
+import { beginCertificateRequestUpload, finalizeCertificateRequestUpload } from "@/server/actions/certificate-requests";
+import { getBrowserSupabaseClient } from "@/lib/supabase-browser";
 
 const LEGAL_BASES = [
   { value: "cumprimento_obrigacao_legal", label: "Cumprimento de obrigação legal (Art. 7º, II)" },
@@ -18,17 +19,95 @@ const LEGAL_BASES = [
   { value: "consentimento_titular", label: "Consentimento do titular (Art. 7º, I)" },
 ];
 
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export function NewRequestForm() {
-  const [state, formAction, pending] = useActionState(createCertificateRequest, undefined);
+  const [file, setFile] = useState<File | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!file) {
+      setError("Selecione um arquivo para enviar.");
+      return;
+    }
+
+    setPending(true);
+    try {
+      const formData = new FormData(event.currentTarget);
+      formData.set("fileName", file.name);
+      formData.set("fileMimeType", file.type);
+      formData.set("fileSize", String(file.size));
+
+      setProgress("Validando dados...");
+      const begin = await beginCertificateRequestUpload(formData);
+      if ("error" in begin) {
+        setError(begin.error);
+        return;
+      }
+
+      setProgress("Enviando documento...");
+      const buffer = await file.arrayBuffer();
+      const { uploadTarget } = begin;
+
+      if (uploadTarget.provider === "supabase") {
+        const { error: uploadError } = await getBrowserSupabaseClient()
+          .storage.from(uploadTarget.bucket)
+          .uploadToSignedUrl(uploadTarget.path, uploadTarget.token, file);
+        if (uploadError) throw uploadError;
+      } else {
+        const response = await fetch(uploadTarget.uploadUrl, {
+          method: "PUT",
+          body: buffer,
+          headers: { "Content-Type": file.type },
+        });
+        if (!response.ok) throw new Error("Falha ao enviar o arquivo.");
+      }
+
+      setProgress("Concluindo...");
+      const storagePath = uploadTarget.provider === "supabase" ? uploadTarget.path : new URL(uploadTarget.uploadUrl, window.location.origin).searchParams.get("path")!;
+      const sha256Hash = await sha256Hex(buffer);
+
+      await finalizeCertificateRequestUpload({
+        requestId: begin.requestId,
+        storagePath,
+        fileName: begin.fileName,
+        mimeType: begin.mimeType,
+        fileSize: begin.fileSize,
+        sha256Hash,
+      });
+      // finalizeCertificateRequestUpload redirects on success — nothing left to do here.
+    } catch (err) {
+      // A Next.js redirect() surfaces as a thrown error with a special digest
+      // that the framework itself handles — rethrow so navigation still happens.
+      if (err && typeof err === "object" && "digest" in err && String(err.digest).startsWith("NEXT_REDIRECT")) {
+        throw err;
+      }
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Não foi possível enviar a solicitação.");
+    } finally {
+      setPending(false);
+      setProgress(null);
+    }
+  }
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Documento</CardTitle>
         </CardHeader>
         <CardContent>
-          <FileUploadDropzone name="file" />
+          <FileUploadDropzone name="file" onFileChange={setFile} />
         </CardContent>
       </Card>
 
@@ -106,12 +185,12 @@ export function NewRequestForm() {
         </CardContent>
       </Card>
 
-      {state?.error && <p className="text-sm text-destructive">{state.error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex justify-end gap-3">
         <Button type="submit" disabled={pending}>
           {pending && <Loader2 className="size-4 animate-spin" />}
-          Enviar para validação
+          {progress ?? "Enviar para validação"}
         </Button>
       </div>
     </form>
