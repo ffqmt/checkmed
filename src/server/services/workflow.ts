@@ -410,6 +410,7 @@ async function applyDecision(
         confidenceScore: score,
         riskLevel,
         supervisorUserId: supervisorId ?? undefined,
+        clientVisibleSummary: summary,
       },
     });
     await recordTimelineEvent({
@@ -438,6 +439,7 @@ async function applyDecision(
         confidenceScore: score,
         riskLevel,
         assignedToUserId: analystId ?? undefined,
+        clientVisibleSummary: summary,
       },
     });
     await recordTimelineEvent({
@@ -468,6 +470,7 @@ async function applyDecision(
       confidenceScore: score,
       riskLevel,
       assignedToUserId: analystId ?? undefined,
+      clientVisibleSummary: summary,
     },
   });
   await recordTimelineEvent({

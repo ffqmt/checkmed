@@ -44,6 +44,11 @@ export function NewRequestForm() {
     setPending(true);
     try {
       const formData = new FormData(event.currentTarget);
+      // FormData(form) auto-captures every field in the DOM, including the
+      // dropzone's hidden <input type="file"> — without deleting it here the
+      // raw file bytes still ride along with this metadata-only call and hit
+      // Vercel's 4.5MB function body cap exactly like before the fix.
+      formData.delete("file");
       formData.set("fileName", file.name);
       formData.set("fileMimeType", file.type);
       formData.set("fileSize", String(file.size));

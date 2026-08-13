@@ -10,6 +10,7 @@ import { StepperWorkflow } from "@/components/shared/stepper-workflow";
 import { Timeline } from "@/components/shared/timeline";
 import { SlaIndicator } from "@/components/shared/sla-indicator";
 import { EmptyState } from "@/components/shared/empty-state";
+import { DocumentViewer } from "@/components/shared/document-viewer";
 import { FileText } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { FINAL_RESULT_LABELS } from "@/lib/constants";
@@ -25,7 +26,7 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
       timelineEvents: { where: { isClientVisible: true }, orderBy: { createdAt: "asc" }, include: { user: true } },
       finalReport: true,
       disputes: { orderBy: { createdAt: "desc" } },
-      documents: true,
+      documents: { orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -56,37 +57,33 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="document">Documento</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="report">Parecer</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Card className="flex items-center justify-center lg:col-span-1">
+              <CardContent className="flex flex-col items-center gap-2 p-5">
+                {request.confidenceScore !== null ? (
+                  <ScoreIndicator score={request.confidenceScore} />
+                ) : (
+                  <p className="text-center text-sm text-muted-foreground">Análise automática em andamento</p>
+                )}
+              </CardContent>
+            </Card>
             <Card className="lg:col-span-2">
               <CardHeader>
-                <CardTitle className="text-base">Resumo</CardTitle>
+                <CardTitle className="text-base">O que está acontecendo</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-muted-foreground">Recebido pela empresa em</p>
-                    <p className="font-medium">{formatDate(request.receivedByCompanyAt)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Criada em</p>
-                    <p className="font-medium">{formatDateTime(request.createdAt)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">SLA</p>
-                    <SlaIndicator dueAt={request.slaDueAt} completedAt={request.completedAt} />
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Documentos enviados</p>
-                    <p className="font-medium">{request.documents.length}</p>
-                  </div>
-                </div>
-                {request.clientVisibleSummary && (
-                  <div className="rounded-lg bg-muted/50 p-3 text-sm">{request.clientVisibleSummary}</div>
+                {request.clientVisibleSummary ? (
+                  <p>{request.clientVisibleSummary}</p>
+                ) : (
+                  <p className="text-muted-foreground">
+                    A análise automática deste documento ainda está em andamento. Assim que for concluída, um resumo do que foi verificado aparece aqui.
+                  </p>
                 )}
                 {canDispute && (
                   <div className="pt-2">
@@ -95,16 +92,39 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
                 )}
               </CardContent>
             </Card>
-            <Card className="flex items-center justify-center">
-              <CardContent className="flex flex-col items-center gap-2 p-5">
-                {request.confidenceScore !== null ? (
-                  <ScoreIndicator score={request.confidenceScore} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">Score ainda não disponível</p>
-                )}
-              </CardContent>
-            </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Dados da solicitação</CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground">Recebido pela empresa em</p>
+                <p className="font-medium">{formatDate(request.receivedByCompanyAt)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Criada em</p>
+                <p className="font-medium">{formatDateTime(request.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">SLA</p>
+                <SlaIndicator dueAt={request.slaDueAt} completedAt={request.completedAt} />
+              </div>
+              <div>
+                <p className="text-muted-foreground">Documentos enviados</p>
+                <p className="font-medium">{request.documents.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="document">
+          {request.documents[0] ? (
+            <DocumentViewer file={request.documents[0]} />
+          ) : (
+            <EmptyState icon={FileText} title="Nenhum documento anexado" />
+          )}
         </TabsContent>
 
         <TabsContent value="timeline">
