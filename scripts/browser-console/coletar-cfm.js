@@ -28,18 +28,33 @@
  *      pedir de novo no meio da paginação).
  * Evite disparar muitas abas de uma vez só — vá de poucas em poucas (3–4
  * por vez) para não parecer tráfego automatizado em massa.
+ *
+ * ESTADOS GRANDES (ex. SP): defina CHECKPOINT_A_CADA abaixo para baixar um
+ * arquivo parcial periodicamente, assim uma aba travada/fechada por engano
+ * não perde tudo. Cada checkpoint substitui o anterior como "mais recente" —
+ * use o de maior número de página se precisar recuperar.
  */
 (async function coletarDadosCFM() {
+  const MAX_PAGINAS = 2000; // trava de segurança — nunca deveria chegar perto disso
+  const CHECKPOINT_A_CADA = 0; // 0 = desativado. Ex.: 100 = baixa um checkpoint a cada 100 páginas.
+
   const todosDados = [];
   let paginaAtual = 1;
-  const MAX_PAGINAS = 500; // trava de segurança — nunca deveria chegar perto disso
   let ultimoBlocoTexto = null;
 
+  function seletorAtivo() {
+    // ".busca-resultado" é o CONTÊINER da página inteira (innerText
+    // concatena todos os médicos sem separador) — ".resultado-item" é a
+    // linha real de cada médico no template do próprio site.
+    return document.querySelectorAll(".resultado-item").length > 0 ? ".resultado-item" : ".busca-resultado";
+  }
+
+  function lerResultados() {
+    return document.querySelectorAll(seletorAtivo());
+  }
+
   function detectarUf() {
-    // O próprio HTML de cada resultado carrega a UF na classe
-    // (ex.: "resultado-item medico_SP_123456") — mais confiável do que ler
-    // o <select>, que pode já ter sido resetado pela navegação.
-    const primeiroResultado = document.querySelector(".busca-resultado, .resultado-item");
+    const primeiroResultado = document.querySelector(".resultado-item, .busca-resultado");
     if (primeiroResultado) {
       const match = primeiroResultado.className.match(/medico_([A-Z]{2})_/);
       if (match) return match[1];
@@ -49,26 +64,39 @@
     return "DESCONHECIDO";
   }
 
-  while (paginaAtual <= MAX_PAGINAS) {
-    console.log(`Coletando dados da página ${paginaAtual}...`);
+  function baixarArquivo(uf, dados, sufixo) {
+    const conteudoTxt = dados.join("\n");
+    const blob = new Blob([conteudoTxt], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `medicos_cfm_${uf}${sufixo}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
-    // ".busca-resultado" turned out to be the whole results-page CONTAINER
-    // (its innerText concatenates every doctor on the page with no
-    // separator), not one element per doctor — the site's own result
-    // template uses ".resultado-item" per row, which is what we actually
-    // want. Falls back to the container only if the site's markup changes
-    // again and ".resultado-item" stops existing.
-    let resultados = document.querySelectorAll(".resultado-item");
-    if (resultados.length === 0) resultados = document.querySelectorAll(".busca-resultado");
+  // Substitui a espera fixa de 3s: confere a cada 250ms (até 8s) se o
+  // conteúdo já mudou, em vez de sempre esperar o teto — mais rápido quando
+  // o site responde rápido, e ainda seguro quando demora.
+  async function esperarAtualizar(textoAnterior, timeoutMs = 8000, intervaloMs = 250) {
+    const inicio = Date.now();
+    while (Date.now() - inicio < timeoutMs) {
+      await new Promise((r) => setTimeout(r, intervaloMs));
+      const atual = Array.from(lerResultados()).map((el) => el.innerText.trim()).join("\n");
+      if (atual && atual !== textoAnterior) return true;
+    }
+    return false;
+  }
+
+  while (paginaAtual <= MAX_PAGINAS) {
+    const resultados = lerResultados();
 
     if (resultados.length === 0) {
-      console.log("Nenhum resultado encontrado nesta página.");
+      console.log("Nenhum resultado encontrado nesta página — encerrando.");
       break;
     }
 
-    const blocoAtual = Array.from(resultados)
-      .map((el) => el.innerText.trim())
-      .join("\n");
+    const blocoAtual = Array.from(resultados).map((el) => el.innerText.trim()).join("\n");
 
     const crmCount = (blocoAtual.match(/CRM:\s*[\w-]+\s*\/\s*[A-Z]{2}/g) || []).length;
     if (crmCount > resultados.length * 1.5) {
@@ -78,7 +106,7 @@
     }
 
     if (blocoAtual === ultimoBlocoTexto) {
-      console.warn("A página não mudou desde a última coleta — parando para evitar loop (o botão 'Próxima' pode não ter avançado de verdade).");
+      console.warn("A página não mudou desde a última coleta — parando para evitar loop (o botão 'Próxima' pode não ter avançado de verdade, ou pode ter aparecido uma nova confirmação de segurança — dê uma olhada na aba).");
       break;
     }
     ultimoBlocoTexto = blocoAtual;
@@ -87,6 +115,13 @@
       todosDados.push(el.innerText.trim());
       todosDados.push("--------------------------------------------------\n");
     });
+
+    console.log(`Página ${paginaAtual} coletada — total acumulado: ${todosDados.length / 2} médico(s).`);
+
+    if (CHECKPOINT_A_CADA > 0 && paginaAtual % CHECKPOINT_A_CADA === 0) {
+      baixarArquivo(detectarUf(), todosDados, `_checkpoint_pagina${paginaAtual}`);
+      console.log(`Checkpoint salvo na página ${paginaAtual}.`);
+    }
 
     const botaoProximo = Array.from(document.querySelectorAll("a, button")).find(
       (el) =>
@@ -98,7 +133,10 @@
     if (botaoProximo && !botaoProximo.classList.contains("disabled") && botaoProximo.getAttribute("aria-disabled") !== "true") {
       paginaAtual++;
       botaoProximo.click();
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const mudou = await esperarAtualizar(blocoAtual);
+      if (!mudou) {
+        console.log("A página demorou mais que 8s para atualizar — seguindo mesmo assim (a checagem de duplicata cobre o caso de não ter avançado de verdade).");
+      }
     } else {
       console.log("Última página alcançada.");
       break;
@@ -106,14 +144,7 @@
   }
 
   const uf = detectarUf();
-  const conteudoTxt = todosDados.join("\n");
-  const blob = new Blob([conteudoTxt], { type: "text/plain;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `medicos_cfm_${uf}.txt`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  baixarArquivo(uf, todosDados, "");
 
   console.log(`Download concluído: medicos_cfm_${uf}.txt (${paginaAtual} página(s), ${todosDados.length / 2} médico(s)).`);
   console.log("Mova (ou já deve ter caído) o arquivo baixado para a pasta data/cfm-raw/ do projeto.");
