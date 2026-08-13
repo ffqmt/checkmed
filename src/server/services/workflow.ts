@@ -266,24 +266,35 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
 
   // 7. QR Code / authentication link — a fast, decisive signal when present:
   // a valid code from a trusted institutional domain is strong corroboration;
-  // deliberately checked late so it lands right before the score that uses it. --
-  let qrStatus: Awaited<ReturnType<typeof qrCodeVerificationService.validateAuthenticationUrl>> | null = null;
-  let qrOutcome: Awaited<ReturnType<typeof qrCodeVerificationService.comparePageDataWithExtractedData>> | null = null;
+  // deliberately checked late so it lands right before the score that uses
+  // it. Decodes the actual pixels rather than trusting what extraction
+  // claimed, and cross-checks the two. -----------------------------------
+  const qrDetection = await qrCodeVerificationService.detectQrCode({ buffer, mimeType: file.mimeType });
+  const claimedQrContent = structured.qrCodeContent ?? structured.authenticationUrl;
+  const qrOutcome = qrCodeVerificationService.compareDecodedWithClaimed(qrDetection.content, claimedQrContent);
+  const qrUrlToValidate = qrDetection.content ?? structured.authenticationUrl;
 
-  if (structured.authenticationUrl) {
-    qrStatus = await qrCodeVerificationService.validateAuthenticationUrl(structured.authenticationUrl);
-    qrOutcome = await qrCodeVerificationService.comparePageDataWithExtractedData(qrStatus.extractedPageData, {});
+  if (qrUrlToValidate) {
+    const qrStatus = await qrCodeVerificationService.validateAuthenticationUrl(qrUrlToValidate);
+    const finalStatus =
+      qrOutcome.status === "DATA_MISMATCH"
+        ? "DATA_MISMATCH"
+        : !qrStatus.isDomainTrusted
+          ? "DOMAIN_SUSPICIOUS"
+          : !qrStatus.reachable
+            ? "UNREACHABLE"
+            : "VALID";
     await prisma.qrCodeVerification.create({
       data: {
         requestId,
-        qrCodeContent: structured.qrCodeContent,
-        authenticationUrl: structured.authenticationUrl,
+        qrCodeContent: qrDetection.content,
+        authenticationUrl: qrUrlToValidate,
         domain: qrStatus.domain,
         isDomainTrusted: qrStatus.isDomainTrusted,
         httpStatus: qrStatus.httpStatus,
-        extractedPageDataJson: qrStatus.extractedPageData ?? undefined,
+        extractedPageDataJson: { decodedFromImage: qrDetection.found, matchesExtractionClaim: qrOutcome.status !== "DATA_MISMATCH" },
         matchScore: qrOutcome.matchScore,
-        status: !qrStatus.isDomainTrusted ? "DOMAIN_SUSPICIOUS" : qrOutcome.status,
+        status: finalStatus,
         checkedAt: new Date(),
         notes: qrOutcome.notes,
       },
@@ -307,9 +318,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     cidValidation,
     doctorVerification: { status: doctorResult.status, matchScore: doctorResult.matchScore },
     clinicVerification: { status: clinicResult.status, matchScore: clinicResult.matchScore },
-    qrCodeVerification: structured.authenticationUrl
-      ? { status: qrOutcome?.status ?? "INCONCLUSIVE", matchScore: qrOutcome?.matchScore ?? null }
-      : { status: "NOT_PRESENT", matchScore: null },
+    qrCodeVerification: { status: qrOutcome.status, matchScore: qrOutcome.matchScore },
     technicalAnalysis: findings,
     similarityFindings,
     priorInconsistentMatch,

@@ -1,40 +1,39 @@
-import { simulateLatency, weightedPick, randomInt } from "./mock-utils";
 import type {
   QrCodeDetectionResult,
   QrCodeUrlValidationResult,
   QrCodeVerificationOutcome,
 } from "./types";
+import { decodeQrFromDocument, checkUrlReachable } from "./adapters/real-qrcode-decoder";
 
 const TRUSTED_DOMAINS = ["autenticidade.saude.gov.br", "cfm.org.br", "gov.br"];
 
 export interface QrCodeVerificationService {
-  detectQrCode(file: { buffer: Buffer }): Promise<QrCodeDetectionResult>;
+  detectQrCode(file: { buffer: Buffer; mimeType: string }): Promise<QrCodeDetectionResult>;
   validateAuthenticationUrl(url: string | null): Promise<QrCodeUrlValidationResult>;
-  comparePageDataWithExtractedData(
-    pageData: Record<string, unknown> | null,
-    extractedData: Record<string, unknown>,
-  ): Promise<QrCodeVerificationOutcome>;
+  /** Real ground truth (decoded from the image) vs. what the extraction step claimed — a disagreement is itself a signal. */
+  compareDecodedWithClaimed(decodedContent: string | null, claimedContent: string | null): QrCodeVerificationOutcome;
 }
 
 /**
- * Mock QR Code + authentication-link verification. A real implementation
- * detects the QR via an image/PDF decoder (e.g. zxing/jsQR), resolves the
- * authentication URL server-side with a fetch that never follows
- * attacker-controlled redirects blindly, and scrapes the resulting page to
- * cross-check the fields it claims to authenticate.
+ * Real QR/authentication-link verification. Unlike doctor/clinic
+ * registries, this needs no vendor and has no ongoing cost — QR decoding is
+ * a local library (jsqr) and reachability is a plain HTTP request — so
+ * there's no MOCK fallback to toggle, this is always real.
+ *
+ * What's deliberately NOT done: scraping the destination page and comparing
+ * its fields against the document. That would require per-institution
+ * logic to be honest about, so it's left out rather than faked. Findings
+ * here are limited to what can be verified for any domain: does the QR
+ * decode to what the document claims, is the domain a known trusted
+ * issuer, and does the URL actually respond.
  */
-export class MockQrCodeVerificationService implements QrCodeVerificationService {
-  async detectQrCode(_file: { buffer: Buffer }): Promise<QrCodeDetectionResult> {
-    await simulateLatency(200, 600);
-    const found = Math.random() < 0.65;
-    return {
-      found,
-      content: found ? "https://autenticidade.saude.gov.br/verificar/482913" : null,
-    };
+export class RealQrCodeVerificationService implements QrCodeVerificationService {
+  async detectQrCode(file: { buffer: Buffer; mimeType: string }): Promise<QrCodeDetectionResult> {
+    const content = await decodeQrFromDocument(file.buffer, file.mimeType);
+    return { found: content !== null, content };
   }
 
   async validateAuthenticationUrl(url: string | null): Promise<QrCodeUrlValidationResult> {
-    await simulateLatency(400, 1200);
     if (!url) {
       return { domain: null, isDomainTrusted: false, httpStatus: null, reachable: false, extractedPageData: null };
     }
@@ -47,40 +46,30 @@ export class MockQrCodeVerificationService implements QrCodeVerificationService 
     }
 
     const isDomainTrusted = TRUSTED_DOMAINS.some((d) => domain.endsWith(d));
-    const reachable = weightedPick([
-      { value: true, weight: 85 },
-      { value: false, weight: 15 },
-    ]);
-
-    return {
-      domain,
-      isDomainTrusted,
-      httpStatus: reachable ? 200 : randomInt(500, 599),
-      reachable,
-      extractedPageData: reachable
-        ? { patientNameMasked: "M*** S****", issueDateMatches: Math.random() > 0.15 }
-        : null,
-    };
+    const { reachable, httpStatus } = await checkUrlReachable(url);
+    return { domain, isDomainTrusted, httpStatus, reachable, extractedPageData: null };
   }
 
-  async comparePageDataWithExtractedData(
-    pageData: Record<string, unknown> | null,
-    _extractedData: Record<string, unknown>,
-  ): Promise<QrCodeVerificationOutcome> {
-    await simulateLatency(150, 400);
-    if (!pageData) {
-      return { status: "UNREACHABLE", matchScore: null, notes: "Não foi possível carregar a página de autenticação." };
+  compareDecodedWithClaimed(decodedContent: string | null, claimedContent: string | null): QrCodeVerificationOutcome {
+    if (!decodedContent && !claimedContent) {
+      return { status: "NOT_PRESENT", matchScore: null, notes: null };
     }
-    if (pageData.issueDateMatches === false) {
+    if (!decodedContent && claimedContent) {
       return {
         status: "DATA_MISMATCH",
-        matchScore: randomInt(20, 50),
-        notes: "Os dados retornados pela página de autenticação não coincidem com o documento.",
+        matchScore: 0,
+        notes: "A leitura do documento identificou um código de autenticação, mas não foi possível decodificar nenhum QR Code de verdade na imagem.",
       };
     }
-    return { status: "VALID", matchScore: randomInt(90, 100), notes: null };
+    if (decodedContent && claimedContent && decodedContent !== claimedContent) {
+      return {
+        status: "DATA_MISMATCH",
+        matchScore: 20,
+        notes: "O conteúdo do QR Code decodificado da imagem diverge do que a leitura do documento identificou.",
+      };
+    }
+    return { status: "VALID", matchScore: 100, notes: null };
   }
 }
 
-export const qrCodeVerificationService: QrCodeVerificationService =
-  new MockQrCodeVerificationService();
+export const qrCodeVerificationService: QrCodeVerificationService = new RealQrCodeVerificationService();
