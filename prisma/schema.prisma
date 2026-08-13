@@ -370,6 +370,7 @@ model User {
   openedDisputes      Dispute[]                   @relation("DisputeOpenedBy")
   assignedDisputes    Dispute[]                   @relation("DisputeAssignedTo")
   dataPrivacyRequests DataPrivacyRequest[]
+  verifiedDoctors     VerifiedDoctor[]            @relation("VerifiedDoctorBy")
 
   @@index([organizationId])
   @@map("users")
@@ -531,6 +532,36 @@ model DoctorVerification {
   notes           String?
 
   @@map("doctor_verifications")
+}
+
+/**
+ * Internal cache of doctors manually confirmed against the real CFM registry
+ * (portal.cfm.org.br/busca-medicos, checked by a human as an ordinary site
+ * visitor — no automated access to that site is performed by this app; see
+ * README "Como plugar validação de CRM"). Checked before falling back to
+ * FormatOnlyDoctorRegistryService's "no registry integration" result, so a
+ * doctor only needs to be looked up once by staff — every later certificate
+ * naming the same CRM/UF is then verified automatically for free. Meant to
+ * be superseded by the official CFM web service (Resolução CFM 2.129/15) or
+ * a paid provider once volume justifies the cost.
+ */
+model VerifiedDoctor {
+  id                 String    @id @default(cuid())
+  crm                String
+  uf                 String
+  officialName       String
+  registrationStatus String?
+  specialty          String?
+  sourceUrl          String?
+  notes              String?
+  verifiedByUserId   String?
+  verifiedBy         User?     @relation("VerifiedDoctorBy", fields: [verifiedByUserId], references: [id])
+  verifiedAt         DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([crm, uf])
+  @@map("verified_doctors")
 }
 
 model ClinicVerification {
