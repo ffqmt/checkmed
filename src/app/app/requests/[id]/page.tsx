@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { RiskBadge } from "@/components/shared/risk-badge";
 import { ScoreIndicator } from "@/components/shared/score-indicator";
@@ -13,7 +14,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { DocumentViewer } from "@/components/shared/document-viewer";
 import { FileText } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { FINAL_RESULT_LABELS } from "@/lib/constants";
+import { FINAL_RESULT_LABELS, ALERT_SEVERITY_LABELS } from "@/lib/constants";
 import { DisputeButton } from "./dispute-button";
 
 export default async function ClientRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +28,7 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
       finalReport: true,
       disputes: { orderBy: { createdAt: "desc" } },
       documents: { orderBy: { createdAt: "desc" } },
+      riskAnalysis: { include: { alerts: { where: { isClientVisible: true }, orderBy: { severity: "desc" } } } },
     },
   });
 
@@ -93,6 +95,27 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
               </CardContent>
             </Card>
           </div>
+
+          {request.riskAnalysis && request.riskAnalysis.alerts.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Pontos de atenção identificados</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {request.riskAnalysis.alerts.map((a) => (
+                  <div key={a.id} className="flex items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                    <div>
+                      <p className="font-medium">{a.title}</p>
+                      <p className="text-muted-foreground">{a.description}</p>
+                    </div>
+                    <Badge variant={a.severity === "CRITICAL" || a.severity === "HIGH" ? "danger" : a.severity === "MEDIUM" ? "warning" : "neutral"}>
+                      {ALERT_SEVERITY_LABELS[a.severity]}
+                    </Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

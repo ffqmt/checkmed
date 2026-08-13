@@ -156,7 +156,7 @@ export class DefaultRiskScoringService implements RiskScoringService {
           severity: "HIGH",
           title: "Indícios técnicos relevantes",
           description: "A análise técnica do arquivo identificou possíveis indícios de manipulação.",
-          isClientVisible: false,
+          isClientVisible: true,
         });
       } else if (tech.manipulationRiskScore >= 30) {
         alerts.push({
@@ -176,10 +176,10 @@ export class DefaultRiskScoringService implements RiskScoringService {
           type: "POSSIBLE_AI_GENERATION",
           severity: "CRITICAL",
           title: "Forte indício de geração por IA",
-          description: "Provedor externo de detecção estimou probabilidade muito alta de geração por inteligência artificial. Resultado probabilístico — não representa confirmação — mas forte o suficiente para exigir revisão humana obrigatória, independentemente de outros sinais favoráveis.",
-          isClientVisible: false,
+          description: `Provedor externo de detecção estimou ${tech.aiGenerationRiskScore}% de probabilidade de que este documento foi gerado por inteligência artificial. Resultado probabilístico — não representa confirmação — mas forte o suficiente para exigir revisão humana obrigatória, independentemente de outros sinais favoráveis.`,
+          isClientVisible: true,
         });
-        scoreCeiling = 35;
+        scoreCeiling = 5;
       } else if (tech.aiGenerationRiskScore >= 50) {
         alerts.push({
           type: "POSSIBLE_AI_GENERATION",
@@ -198,7 +198,7 @@ export class DefaultRiskScoringService implements RiskScoringService {
           severity: "HIGH",
           title: "Indícios no conteúdo do documento",
           description: "A leitura do documento identificou elementos de texto ou layout fora do padrão esperado para este tipo de documento.",
-          isClientVisible: false,
+          isClientVisible: true,
         });
       } else if (tech.contentAuthenticityRiskScore >= 30) {
         alerts.push({
@@ -293,7 +293,7 @@ export class DefaultRiskScoringService implements RiskScoringService {
         severity: "CRITICAL",
         title: "Semelhança com caso anterior inconsistente",
         description: "Este documento é idêntico ou altamente semelhante a um caso anterior que não foi confirmado.",
-        isClientVisible: false,
+        isClientVisible: true,
       });
     } else if (input.similarityFindings.length > 0 && input.priorInconsistentMatch) {
       score -= 18;
@@ -303,7 +303,7 @@ export class DefaultRiskScoringService implements RiskScoringService {
         severity: "HIGH",
         title: "Similaridade com caso anterior",
         description: "Foram encontradas semelhanças relevantes com um documento de caso anterior não confirmado.",
-        isClientVisible: false,
+        isClientVisible: true,
       });
     } else if (input.similarityFindings.length > 0) {
       alerts.push({
@@ -364,8 +364,11 @@ export class DefaultRiskScoringService implements RiskScoringService {
       recommendation = "INCONCLUSIVE";
     }
 
-    const summary =
-      recommendation === "AUTO_VALIDATE"
+    const aiGenerationCritical = alerts.some((a) => a.type === "POSSIBLE_AI_GENERATION" && a.severity === "CRITICAL");
+
+    const summary = aiGenerationCritical
+      ? `Nossa análise técnica identificou forte indício (${tech?.aiGenerationRiskScore ?? 0}% segundo verificação externa) de que este documento foi gerado por inteligência artificial, e não por uma instituição de saúde real. Resultado probabilístico, encaminhado para revisão humana obrigatória antes de qualquer conclusão.`
+      : recommendation === "AUTO_VALIDATE"
         ? "Médico e instituição emissora confirmados, sem indícios relevantes — documento segue para parecer com revisão rápida."
         : recommendation === "HUMAN_REVIEW"
         ? "Confiabilidade média — documento encaminhado para revisão humana antes da conclusão."

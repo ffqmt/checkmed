@@ -129,7 +129,13 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
       externalProviderResponseJson: findings.externalProviderResponseJson ?? undefined,
     },
   });
-  await recordTimelineEvent({ requestId, eventType: "TECHNICAL_ANALYSIS_COMPLETED", title: "Análise técnica do arquivo concluída", isClientVisible: false });
+  await recordTimelineEvent({
+    requestId,
+    eventType: "TECHNICAL_ANALYSIS_COMPLETED",
+    title: "Análise técnica do arquivo concluída",
+    description: describeTechnicalAnalysis(findings),
+    isClientVisible: true,
+  });
 
   // 4. CID-10 validation — deterministic, free, no vendor. Confirms format
   // and chapter range, not the full granular catalog (see lib/cid10.ts). ----
@@ -377,6 +383,23 @@ async function setStatus(requestId: string, status: RequestStatus) {
     description: status,
     isClientVisible: false,
   });
+}
+
+function describeTechnicalAnalysis(findings: {
+  aiGenerationRiskScore: number;
+  manipulationRiskScore: number;
+  contentAuthenticityRiskScore: number;
+}): string {
+  if (findings.aiGenerationRiskScore >= 90) {
+    return `Forte indício técnico (${findings.aiGenerationRiskScore}%, segundo verificação externa) de que o documento foi gerado por inteligência artificial. Resultado probabilístico — caso encaminhado para revisão humana.`;
+  }
+  if (findings.aiGenerationRiskScore >= 50) {
+    return `Indício técnico moderado (${findings.aiGenerationRiskScore}%) de possível geração por inteligência artificial — resultado não conclusivo.`;
+  }
+  if (findings.manipulationRiskScore >= 55 || findings.contentAuthenticityRiskScore >= 55) {
+    return "A análise técnica identificou elementos do arquivo ou do conteúdo que fogem do padrão esperado para este tipo de documento.";
+  }
+  return "Nenhum indício técnico relevante de manipulação ou geração por inteligência artificial foi identificado.";
 }
 
 function describeVerification(status: string) {
