@@ -1,4 +1,5 @@
 import { simulateLatency, weightedPick, randomInt } from "./mock-utils";
+import { checkCrmFormat } from "@/lib/crm-format";
 import type { DoctorVerificationResult } from "./types";
 
 export interface DoctorRegistryService {
@@ -15,6 +16,12 @@ export interface DoctorRegistryService {
  * target is available) or a licensed data provider. Implement
  * DoctorRegistryService with the real call and keep the return contract.
  * See README "Como plugar validação de CRM".
+ *
+ * The one real thing this does today: check the CRM's format/UF plausibility
+ * before anything else. An obviously-impossible CRM (non-numeric, wrong
+ * digit count, fake UF) is rejected deterministically instead of having a
+ * chance to land on the random "VALIDATED" outcome below — format checking
+ * doesn't require a registry, so there's no reason to leave it to chance.
  */
 export class MockDoctorRegistryService implements DoctorRegistryService {
   async verifyDoctor(
@@ -37,6 +44,23 @@ export class MockDoctorRegistryService implements DoctorRegistryService {
         status: "INCONCLUSIVE",
         rawResponse: { reason: "missing_crm_or_uf" },
         notes: "CRM ou UF não informados para consulta.",
+      };
+    }
+
+    const format = checkCrmFormat(crm, uf);
+    if (!format.plausible) {
+      return {
+        officialDoctorName: null,
+        officialCrm: null,
+        officialCrmUf: null,
+        registrationStatus: null,
+        specialty: null,
+        sourceName: "Verificação de formato (determinística)",
+        sourceUrl: null,
+        matchScore: 0,
+        status: "NOT_FOUND",
+        rawResponse: { reason: format.reason, crm, uf },
+        notes: "O CRM/UF informados não têm um formato reconhecido como válido para um registro no conselho de classe.",
       };
     }
 
