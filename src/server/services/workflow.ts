@@ -192,7 +192,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     requestId,
     eventType: "DOCTOR_VERIFICATION_COMPLETED",
     title: "Validação do médico concluída",
-    description: describeVerification(doctorResult.status),
+    description: doctorResult.notes ?? describeVerification(doctorResult.status),
     isClientVisible: true,
   });
 
@@ -225,7 +225,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     requestId,
     eventType: "CLINIC_VERIFICATION_COMPLETED",
     title: "Validação da clínica concluída",
-    description: describeVerification(clinicResult.status),
+    description: clinicResult.notes ?? describeVerification(clinicResult.status),
     isClientVisible: true,
   });
 
