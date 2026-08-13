@@ -38,6 +38,12 @@ export class DefaultRiskScoringService implements RiskScoringService {
     const positives: string[] = [];
     const negatives: string[] = [];
     const alerts: Alert[] = [];
+    // A near-certain AI-generation result is specific and strong enough that
+    // no combination of other signals should be able to outweigh it (e.g. a
+    // mocked/lucky doctor "confirmation" adding more points than a 99%
+    // AI-generation score subtracts). Applied after every other adjustment,
+    // right before the final clamp.
+    let scoreCeiling: number | null = null;
 
     // --- Doctor verification --------------------------------------------
     const doctor = input.doctorVerification;
@@ -164,7 +170,17 @@ export class DefaultRiskScoringService implements RiskScoringService {
         positives.push("Análise técnica do arquivo sem indícios relevantes de manipulação.");
       }
 
-      if (tech.aiGenerationRiskScore >= 50) {
+      if (tech.aiGenerationRiskScore >= 90) {
+        negatives.push("Forte indício técnico de conteúdo gerado por inteligência artificial.");
+        alerts.push({
+          type: "POSSIBLE_AI_GENERATION",
+          severity: "CRITICAL",
+          title: "Forte indício de geração por IA",
+          description: "Provedor externo de detecção estimou probabilidade muito alta de geração por inteligência artificial. Resultado probabilístico — não representa confirmação — mas forte o suficiente para exigir revisão humana obrigatória, independentemente de outros sinais favoráveis.",
+          isClientVisible: false,
+        });
+        scoreCeiling = 35;
+      } else if (tech.aiGenerationRiskScore >= 50) {
         alerts.push({
           type: "POSSIBLE_AI_GENERATION",
           severity: "MEDIUM",
@@ -294,6 +310,7 @@ export class DefaultRiskScoringService implements RiskScoringService {
       });
     }
 
+    if (scoreCeiling !== null) score = Math.min(score, scoreCeiling);
     score = clamp(Math.round(score));
     const riskLevel = riskLevelFromScore(score);
     const hasCritical = alerts.some((a) => a.severity === "CRITICAL");
