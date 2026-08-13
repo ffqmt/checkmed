@@ -20,23 +20,28 @@ const ExtractionSchema = z.object({
   ocrConfidence: z.number().min(0).max(100).describe("0-100: how confident you are in the transcription given image quality/legibility."),
   ocrWarnings: z.array(z.string()).describe("Short notes about legibility issues, e.g. blurry regions. Empty array if none."),
 
-  doctorName: z.string().nullable(),
-  doctorCrm: z.string().nullable().describe("Digits only, no formatting."),
-  doctorCrmUf: z.string().nullable().describe("Two-letter Brazilian state abbreviation."),
-  certificateIssueDate: z.string().nullable().describe("ISO date YYYY-MM-DD, or null if not present/legible."),
+  // Structured-output JSON schemas cap nullable/union-typed parameters at 16
+  // — with 17 fields needing "not present" this budget doesn't fit, so every
+  // string field below uses "" (not null) as its "not found" sentinel
+  // instead of .nullable(), and gets normalized back to null in code after
+  // parsing. absenceDays is the one field kept genuinely nullable.
+  doctorName: z.string().describe('Empty string "" if not present/legible.'),
+  doctorCrm: z.string().describe('Digits only, no formatting. Empty string "" if not present.'),
+  doctorCrmUf: z.string().describe('Two-letter Brazilian state abbreviation. Empty string "" if not present.'),
+  certificateIssueDate: z.string().describe('ISO date YYYY-MM-DD, or "" if not present/legible.'),
   absenceDays: z.number().nullable(),
-  absenceStartDate: z.string().nullable().describe("ISO date YYYY-MM-DD."),
-  absenceEndDate: z.string().nullable().describe("ISO date YYYY-MM-DD."),
-  clinicName: z.string().nullable(),
-  clinicCnpj: z.string().nullable(),
-  clinicCnes: z.string().nullable(),
-  clinicAddress: z.string().nullable(),
-  clinicPhone: z.string().nullable(),
-  clinicEmail: z.string().nullable(),
-  cidCode: z.string().nullable(),
-  qrCodeContent: z.string().nullable().describe("Raw content encoded in a QR code, if one is visible."),
-  authenticationUrl: z.string().nullable().describe("A verification/authentication URL printed on the document, if any."),
-  patientCpf: z.string().nullable().describe("The patient's CPF exactly as printed in the document body, digits only. Null if not present."),
+  absenceStartDate: z.string().describe('ISO date YYYY-MM-DD, or "" if not present.'),
+  absenceEndDate: z.string().describe('ISO date YYYY-MM-DD, or "" if not present.'),
+  clinicName: z.string().describe('Empty string "" if not present.'),
+  clinicCnpj: z.string().describe('Empty string "" if not present.'),
+  clinicCnes: z.string().describe('Empty string "" if not present.'),
+  clinicAddress: z.string().describe('Empty string "" if not present.'),
+  clinicPhone: z.string().describe('Empty string "" if not present.'),
+  clinicEmail: z.string().describe('Empty string "" if not present.'),
+  cidCode: z.string().describe('Empty string "" if not present.'),
+  qrCodeContent: z.string().describe('Raw content encoded in a QR code, if one is visible. Empty string "" otherwise.'),
+  authenticationUrl: z.string().describe('A verification/authentication URL printed on the document, if any. Empty string "" otherwise.'),
+  patientCpf: z.string().describe('The patient\'s CPF exactly as printed in the document body, digits only. Empty string "" if not present.'),
 
   contentAuthenticityRiskScore: z
     .number()
@@ -73,10 +78,14 @@ function getClient(): Anthropic {
   return client;
 }
 
-function parseIsoDate(value: string | null): Date | null {
+function parseIsoDate(value: string): Date | null {
   if (!value) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function emptyToNull(value: string): string | null {
+  return value === "" ? null : value;
 }
 
 function documentContentBlock(buffer: Buffer, mimeType: string) {
@@ -105,6 +114,12 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
     output_config: { format: zodOutputFormat(ExtractionSchema) },
   });
 
+  console.log("[claude-vision-extraction] usage", {
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+  });
+
   const parsed = response.parsed_output;
   if (!parsed) {
     throw new Error("Claude não retornou uma extração estruturada válida.");
@@ -114,33 +129,36 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
   let contentAuthenticityRiskScore = parsed.contentAuthenticityRiskScore;
 
   if (parsed.patientCpf && !isValidCpf(parsed.patientCpf)) {
-    contentFindings.push({
-      area: "Formato do CPF",
-      description: "O CPF informado no corpo do documento não possui o formato/dígito verificador válido para um CPF brasileiro.",
-      severity: "high",
-    });
     contentAuthenticityRiskScore = Math.max(contentAuthenticityRiskScore, 65);
+    const alreadyFlaggedByModel = contentFindings.some((f) => /cpf/i.test(f.area));
+    if (!alreadyFlaggedByModel) {
+      contentFindings.push({
+        area: "Formato do CPF",
+        description: "O CPF informado no corpo do documento não possui o formato/dígito verificador válido para um CPF brasileiro.",
+        severity: "high",
+      });
+    }
   }
 
   return {
     ocr: { rawText: parsed.rawText, confidence: parsed.ocrConfidence, warnings: parsed.ocrWarnings },
     extraction: {
-      doctorName: parsed.doctorName,
-      doctorCrm: parsed.doctorCrm,
-      doctorCrmUf: parsed.doctorCrmUf,
+      doctorName: emptyToNull(parsed.doctorName),
+      doctorCrm: emptyToNull(parsed.doctorCrm),
+      doctorCrmUf: emptyToNull(parsed.doctorCrmUf),
       certificateIssueDate: parseIsoDate(parsed.certificateIssueDate),
       absenceDays: parsed.absenceDays,
       absenceStartDate: parseIsoDate(parsed.absenceStartDate),
       absenceEndDate: parseIsoDate(parsed.absenceEndDate),
-      clinicName: parsed.clinicName,
-      clinicCnpj: parsed.clinicCnpj,
-      clinicCnes: parsed.clinicCnes,
-      clinicAddress: parsed.clinicAddress,
-      clinicPhone: parsed.clinicPhone,
-      clinicEmail: parsed.clinicEmail,
-      cidCode: parsed.cidCode,
-      qrCodeContent: parsed.qrCodeContent,
-      authenticationUrl: parsed.authenticationUrl,
+      clinicName: emptyToNull(parsed.clinicName),
+      clinicCnpj: emptyToNull(parsed.clinicCnpj),
+      clinicCnes: emptyToNull(parsed.clinicCnes),
+      clinicAddress: emptyToNull(parsed.clinicAddress),
+      clinicPhone: emptyToNull(parsed.clinicPhone),
+      clinicEmail: emptyToNull(parsed.clinicEmail),
+      cidCode: emptyToNull(parsed.cidCode),
+      qrCodeContent: emptyToNull(parsed.qrCodeContent),
+      authenticationUrl: emptyToNull(parsed.authenticationUrl),
       confidence: { overall: parsed.ocrConfidence },
       warnings: parsed.ocrWarnings,
     },
