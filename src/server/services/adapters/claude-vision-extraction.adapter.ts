@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod/v4";
+import sharp from "sharp";
 import { isValidCpf } from "@/lib/cpf";
 import type { DocumentIntelligenceResult } from "../types";
 
@@ -88,6 +89,31 @@ function emptyToNull(value: string): string | null {
   return value === "" ? null : value;
 }
 
+// Anthropic rejects image content whose base64 encoding exceeds 10MB. Base64
+// inflates raw bytes by ~4/3, so a buffer above this raw-byte threshold is
+// downscaled/recompressed as JPEG (repeating with smaller width/quality if
+// needed) until it clears the limit with margin. PDFs go through Claude's
+// native document understanding instead (32MB limit) and never hit this path.
+const MAX_IMAGE_BYTES_FOR_CLAUDE = 7 * 1024 * 1024;
+
+async function ensureImageFitsClaudeLimit(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  if (buffer.length <= MAX_IMAGE_BYTES_FOR_CLAUDE) return { buffer, mimeType };
+
+  let working = buffer;
+  let width = (await sharp(buffer).metadata()).width ?? 2000;
+  let quality = 85;
+
+  for (let attempt = 0; attempt < 6 && working.length > MAX_IMAGE_BYTES_FOR_CLAUDE; attempt++) {
+    if (attempt > 0) {
+      width = Math.round(width * 0.8);
+      quality = Math.max(50, quality - 10);
+    }
+    working = await sharp(buffer).resize({ width, withoutEnlargement: true }).jpeg({ quality }).toBuffer();
+  }
+
+  return { buffer: working, mimeType: "image/jpeg" };
+}
+
 function documentContentBlock(buffer: Buffer, mimeType: string) {
   const data = buffer.toString("base64");
   if (mimeType === "application/pdf") {
@@ -98,6 +124,9 @@ function documentContentBlock(buffer: Buffer, mimeType: string) {
 }
 
 export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: string }): Promise<DocumentIntelligenceResult> {
+  const { buffer, mimeType } =
+    file.mimeType === "application/pdf" ? file : await ensureImageFitsClaudeLimit(file.buffer, file.mimeType);
+
   const response = await getClient().messages.parse({
     model: "claude-sonnet-5",
     max_tokens: 4096,
@@ -106,7 +135,7 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
       {
         role: "user",
         content: [
-          documentContentBlock(file.buffer, file.mimeType),
+          documentContentBlock(buffer, mimeType),
           { type: "text", text: "Leia este atestado médico e devolva os campos estruturados." },
         ],
       },
