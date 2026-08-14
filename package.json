@@ -14,7 +14,9 @@
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "import:doctors": "tsx scripts/import-verified-doctors.ts data/cfm-raw",
-    "import:doctors:watch": "tsx scripts/import-verified-doctors.ts data/cfm-raw --watch"
+    "import:doctors:watch": "tsx scripts/import-verified-doctors.ts data/cfm-raw --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -74,6 +76,7 @@
     "prisma": "^6.5.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   }
 }

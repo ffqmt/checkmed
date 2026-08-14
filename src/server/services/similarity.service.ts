@@ -23,7 +23,7 @@ const VISUAL_MAX_HAMMING = 10; // out of 64 bits — common aHash "likely simila
 const CANDIDATE_POOL = 100; // naive recent-N scan; no vector index in this codebase yet
 
 /** Average hash (aHash): resize to a tiny grayscale grid, threshold each pixel against the grid's mean. Cheap, deterministic, no vendor — genuinely detects re-saved/re-compressed/lightly-cropped copies of the same image, unlike a hash of file bytes. */
-async function computePerceptualHash(buffer: Buffer, mimeType: string): Promise<string | null> {
+export async function computePerceptualHash(buffer: Buffer, mimeType: string): Promise<string | null> {
   if (mimeType === "application/pdf") return null; // no PDF rasterizer in this pipeline — see FingerprintResult
   try {
     const { data } = await sharp(buffer)
@@ -42,7 +42,7 @@ async function computePerceptualHash(buffer: Buffer, mimeType: string): Promise<
   }
 }
 
-function hammingDistanceHex(a: string, b: string): number {
+export function hammingDistanceHex(a: string, b: string): number {
   if (a.length !== b.length) return Number.MAX_SAFE_INTEGER;
   let distance = 0;
   for (let i = 0; i < a.length; i++) {
@@ -55,7 +55,7 @@ function hammingDistanceHex(a: string, b: string): number {
   return distance;
 }
 
-function shingles(text: string, size = SHINGLE_SIZE): Set<string> {
+export function shingles(text: string, size = SHINGLE_SIZE): Set<string> {
   const words = text.split(" ").filter(Boolean);
   const result = new Set<string>();
   for (let i = 0; i <= words.length - size; i++) result.add(words.slice(i, i + size).join(" "));
@@ -63,7 +63,7 @@ function shingles(text: string, size = SHINGLE_SIZE): Set<string> {
 }
 
 /** Jaccard similarity over word shingles — real fuzzy comparison, not the strict hash-equality the exact-text check already covers below. Catches the same template reused with a different name/date/CID, which byte or exact-text hashing would miss entirely. */
-function jaccardSimilarity(a: string, b: string): number {
+export function jaccardSimilarity(a: string, b: string): number {
   const setA = shingles(a);
   const setB = shingles(b);
   if (setA.size === 0 || setB.size === 0) return 0;
