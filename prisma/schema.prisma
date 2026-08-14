@@ -413,6 +413,7 @@ model MedicalCertificateRequest {
   consentOrLegalBasis String
   treatmentPurpose    String
   retentionUntil      DateTime?
+  anonymizedAt        DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
