@@ -43,6 +43,8 @@ export const permissions = {
     role === "SUPER_ADMIN" || role === "INTERNAL_ADMIN",
   submitRequest: (role: UserRole) => isClient(role),
   openDispute: (role: UserRole) => isClient(role),
+  fileDataPrivacyRequest: (role: UserRole) => role === "CLIENT_ADMIN" || isInternal(role),
+  fulfillDataPrivacyRequest: (role: UserRole) => role === "SUPER_ADMIN" || role === "INTERNAL_ADMIN",
 } as const;
 
 export function assertPermission(ok: boolean, message = "Acesso não permitido") {

@@ -1,20 +1,40 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ShieldQuestion } from "lucide-react";
 import { NotificationPreferencesForm } from "./notification-preferences-form";
+import { DataPrivacyRequestForm } from "./data-privacy-request-form";
+import { formatDateTime } from "@/lib/utils";
+import { DATA_PRIVACY_REQUEST_TYPE_LABELS, DATA_PRIVACY_REQUEST_STATUS_LABELS } from "@/lib/constants";
+
+const STATUS_VARIANT: Record<string, "success" | "neutral" | "warning" | "danger"> = {
+  PENDING: "warning",
+  IN_PROGRESS: "warning",
+  COMPLETED: "success",
+  REJECTED: "danger",
+};
 
 export default async function ClientSettingsPage() {
   const session = await auth();
 
-  const preference = await prisma.notificationPreference.findFirst({
-    where: { organizationId: session!.user.organizationId!, userId: session!.user.id },
-  });
+  const [preference, privacyRequests] = await Promise.all([
+    prisma.notificationPreference.findFirst({
+      where: { organizationId: session!.user.organizationId!, userId: session!.user.id },
+    }),
+    prisma.dataPrivacyRequest.findMany({
+      where: { organizationId: session!.user.organizationId! },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Configurações</h2>
-        <p className="text-sm text-muted-foreground">Gerencie suas preferências de notificação.</p>
+        <p className="text-sm text-muted-foreground">Gerencie suas preferências de notificação e dados.</p>
       </div>
 
       <Card>
@@ -32,6 +52,37 @@ export default async function ClientSettingsPage() {
               notifyOnInconsistency: preference?.notifyOnInconsistency ?? true,
             }}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base">Privacidade e dados (LGPD)</CardTitle>
+            <CardDescription>Solicite acesso, correção, exclusão, anonimização ou portabilidade de dados de um titular.</CardDescription>
+          </div>
+          <DataPrivacyRequestForm />
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {privacyRequests.length === 0 ? (
+            <EmptyState icon={ShieldQuestion} title="Nenhuma solicitação registrada" />
+          ) : (
+            privacyRequests.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                <div>
+                  <p className="font-medium">
+                    {DATA_PRIVACY_REQUEST_TYPE_LABELS[r.requestType]} — {r.subjectName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.subjectDocumentMasked} · Registrada em {formatDateTime(r.createdAt)}
+                    {r.completedAt && ` · Concluída em ${formatDateTime(r.completedAt)}`}
+                  </p>
+                  {r.notes && <p className="mt-1 text-xs text-muted-foreground">{r.notes}</p>}
+                </div>
+                <Badge variant={STATUS_VARIANT[r.status]}>{DATA_PRIVACY_REQUEST_STATUS_LABELS[r.status]}</Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

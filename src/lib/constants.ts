@@ -8,6 +8,8 @@ import type {
   QrCodeStatus,
   DisputeStatus,
   AlertSeverity,
+  DataPrivacyRequestType,
+  DataPrivacyRequestStatus,
 } from "@prisma/client";
 
 /**
@@ -118,6 +120,21 @@ export const QR_STATUS_LABELS: Record<QrCodeStatus, string> = {
   DOMAIN_SUSPICIOUS: "Domínio não reconhecido",
   DATA_MISMATCH: "Dados divergentes",
   INCONCLUSIVE: "Inconclusivo",
+};
+
+export const DATA_PRIVACY_REQUEST_TYPE_LABELS: Record<DataPrivacyRequestType, string> = {
+  ACCESS: "Acesso aos dados",
+  CORRECTION: "Correção de dados",
+  ANONYMIZATION: "Anonimização",
+  DELETION: "Exclusão",
+  EXPORT: "Portabilidade (exportação)",
+};
+
+export const DATA_PRIVACY_REQUEST_STATUS_LABELS: Record<DataPrivacyRequestStatus, string> = {
+  PENDING: "Pendente",
+  IN_PROGRESS: "Em andamento",
+  COMPLETED: "Concluída",
+  REJECTED: "Rejeitada",
 };
 
 export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {

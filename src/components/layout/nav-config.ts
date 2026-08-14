@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Inbox,
   Stethoscope,
+  ShieldQuestion,
 } from "lucide-react";
 
 export type NavItem = {
@@ -46,6 +47,7 @@ export const adminNav: NavItem[] = [
   { href: "/admin/api-keys", label: "API Keys", icon: KeyRound },
   { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/admin/retention", label: "Políticas de retenção", icon: Database },
+  { href: "/admin/data-privacy", label: "Solicitações de privacidade", icon: ShieldQuestion },
   { href: "/admin/audit-logs", label: "Logs de auditoria", icon: ScrollText },
 ];
 
