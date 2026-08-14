@@ -138,11 +138,14 @@ export type AiContentDetectionResult = {
 
 export type FingerprintResult = {
   fileHash: string;
-  perceptualHash: string;
-  layoutHash: string;
+  /** Null for PDFs — this pipeline has no PDF-to-image rasterizer to hash. */
+  perceptualHash: string | null;
+  /** Not computed: no bounding-box/layout data available from extraction (plain text only). See similarity.service.ts. */
+  layoutHash: null;
   textHash: string;
-  stampHash: string | null;
-  signatureHash: string | null;
+  /** Not computed: no stamp/signature region-detection available (same limitation as forensics.service.ts's disabled pixel check). */
+  stampHash: null;
+  signatureHash: null;
   normalizedText: string;
 };
 

@@ -230,7 +230,10 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
   });
 
   // 6. Fingerprint + similarity -----------------------------------------------
-  const fingerprint = await documentSimilarityService.generateFingerprint({ buffer }, ocrResult.rawText);
+  const fingerprint = await documentSimilarityService.generateFingerprint(
+    { buffer, mimeType: file.mimeType, sha256Hash: file.sha256Hash },
+    ocrResult.rawText,
+  );
   await prisma.documentFingerprint.create({
     data: {
       requestId,

@@ -1,47 +1,119 @@
 import crypto from "crypto";
+import sharp from "sharp";
 import { prisma } from "@/lib/prisma";
-import { simulateLatency, randomInt } from "./mock-utils";
 import type { FingerprintResult, SimilarityFinding } from "./types";
 
 export interface DocumentSimilarityService {
-  generateFingerprint(file: { buffer: Buffer }, extractedText: string): Promise<FingerprintResult>;
+  generateFingerprint(file: { buffer: Buffer; mimeType: string; sha256Hash: string }, extractedText: string): Promise<FingerprintResult>;
   findSimilarDocuments(requestId: string, fingerprint: FingerprintResult): Promise<SimilarityFinding[]>;
   explainSimilarity(finding: SimilarityFinding): string;
 }
 
-function hashOf(input: string) {
-  return crypto.createHash("sha256").update(input).digest("hex");
+const PHASH_GRID = 8; // 8x8 grayscale grid -> 64-bit average hash
+const SHINGLE_SIZE = 3; // 3-word shingles for fuzzy text comparison
+// Jaccard %, below this too weak a signal to surface. Calibrated against a
+// same-template/different-name-CID-days case (the exact fraud pattern this
+// check targets), which scored 48% — not a corpus-tuned number, since
+// shared Brazilian medical-certificate boilerplate ("declaro para os
+// devidos fins...") can itself inflate similarity between genuinely
+// unrelated documents; revisit once enough real submissions accumulate to
+// measure the actual false-positive rate.
+const TEXT_SIMILARITY_THRESHOLD = 45;
+const VISUAL_MAX_HAMMING = 10; // out of 64 bits — common aHash "likely similar" cutoff
+const CANDIDATE_POOL = 100; // naive recent-N scan; no vector index in this codebase yet
+
+/** Average hash (aHash): resize to a tiny grayscale grid, threshold each pixel against the grid's mean. Cheap, deterministic, no vendor — genuinely detects re-saved/re-compressed/lightly-cropped copies of the same image, unlike a hash of file bytes. */
+async function computePerceptualHash(buffer: Buffer, mimeType: string): Promise<string | null> {
+  if (mimeType === "application/pdf") return null; // no PDF rasterizer in this pipeline — see FingerprintResult
+  try {
+    const { data } = await sharp(buffer)
+      .resize(PHASH_GRID, PHASH_GRID, { fit: "fill" })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const avg = data.reduce((sum, v) => sum + v, 0) / data.length;
+    let bits = "";
+    for (const pixel of data) bits += pixel >= avg ? "1" : "0";
+    let hex = "";
+    for (let i = 0; i < bits.length; i += 4) hex += parseInt(bits.slice(i, i + 4).padEnd(4, "0"), 2).toString(16);
+    return hex;
+  } catch {
+    return null;
+  }
+}
+
+function hammingDistanceHex(a: string, b: string): number {
+  if (a.length !== b.length) return Number.MAX_SAFE_INTEGER;
+  let distance = 0;
+  for (let i = 0; i < a.length; i++) {
+    let xor = parseInt(a[i], 16) ^ parseInt(b[i], 16);
+    while (xor > 0) {
+      distance += xor & 1;
+      xor >>= 1;
+    }
+  }
+  return distance;
+}
+
+function shingles(text: string, size = SHINGLE_SIZE): Set<string> {
+  const words = text.split(" ").filter(Boolean);
+  const result = new Set<string>();
+  for (let i = 0; i <= words.length - size; i++) result.add(words.slice(i, i + size).join(" "));
+  return result;
+}
+
+/** Jaccard similarity over word shingles — real fuzzy comparison, not the strict hash-equality the exact-text check already covers below. Catches the same template reused with a different name/date/CID, which byte or exact-text hashing would miss entirely. */
+function jaccardSimilarity(a: string, b: string): number {
+  const setA = shingles(a);
+  const setB = shingles(b);
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const s of setA) if (setB.has(s)) intersection++;
+  const union = setA.size + setB.size - intersection;
+  return union === 0 ? 0 : Math.round((intersection / union) * 100);
+}
+
+function hashOfNormalizedText(text: string): string {
+  return crypto.createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
 /**
- * Mock document-fingerprinting/similarity provider. Real perceptual/layout
- * hashing (pHash, SSIM on rendered pages, layout-graph hashing) would
- * replace generateFingerprint; findSimilarDocuments would run a
- * nearest-neighbor search (e.g. Hamming distance over stored hashes, or a
- * vector index) instead of the naive DB scan below.
+ * Real fingerprinting/similarity: exact-file dedup via the certificate's own
+ * SHA-256, near-duplicate text detection via Jaccard similarity over word
+ * shingles (falling back to nothing fancier — exact-normalized-text hash
+ * equality already covers byte-identical text), and near-duplicate image
+ * detection via a genuine average perceptual hash computed with sharp.
+ *
+ * Deliberately NOT computed: layout/stamp/signature similarity. This
+ * pipeline has no bounding-box or region-detection data to base them on —
+ * extraction returns plain text, and forensics.service.ts already disabled
+ * the equivalent stamp/signature pixel check for the identical reason.
+ * Faking those with a random score (the previous implementation's approach)
+ * is exactly the kind of fabricated finding this app no longer ships.
  */
-export class MockDocumentSimilarityService implements DocumentSimilarityService {
-  async generateFingerprint(file: { buffer: Buffer }, extractedText: string): Promise<FingerprintResult> {
-    await simulateLatency(200, 500);
-    const fileHash = hashOf(file.buffer.toString("base64").slice(0, 5000));
+export class RealDocumentSimilarityService implements DocumentSimilarityService {
+  async generateFingerprint(
+    file: { buffer: Buffer; mimeType: string; sha256Hash: string },
+    extractedText: string,
+  ): Promise<FingerprintResult> {
     const normalizedText = extractedText.replace(/\s+/g, " ").trim().toLowerCase();
+    const perceptualHash = await computePerceptualHash(file.buffer, file.mimeType);
     return {
-      fileHash,
-      perceptualHash: hashOf(fileHash + "perceptual").slice(0, 16),
-      layoutHash: hashOf(fileHash + "layout").slice(0, 16),
-      textHash: hashOf(normalizedText).slice(0, 16),
-      stampHash: Math.random() > 0.3 ? hashOf(fileHash + "stamp").slice(0, 16) : null,
-      signatureHash: Math.random() > 0.3 ? hashOf(fileHash + "signature").slice(0, 16) : null,
+      fileHash: file.sha256Hash,
+      perceptualHash,
+      layoutHash: null,
+      textHash: hashOfNormalizedText(normalizedText),
+      stampHash: null,
+      signatureHash: null,
       normalizedText,
     };
   }
 
   async findSimilarDocuments(requestId: string, fingerprint: FingerprintResult): Promise<SimilarityFinding[]> {
-    await simulateLatency(300, 700);
-
     const others = await prisma.documentFingerprint.findMany({
       where: { requestId: { not: requestId } },
-      take: 25,
+      select: { requestId: true, fileHash: true, textHash: true, normalizedText: true, perceptualHash: true },
+      take: CANDIDATE_POOL,
       orderBy: { createdAt: "desc" },
     });
 
@@ -57,22 +129,41 @@ export class MockDocumentSimilarityService implements DocumentSimilarityService 
         });
         continue;
       }
+
       if (other.textHash === fingerprint.textHash) {
         findings.push({
           matchedRequestId: other.requestId,
           matchType: "TEXT_SIMILARITY",
-          similarityScore: randomInt(88, 99),
-          explanation: "O texto extraído coincide quase integralmente com outro documento já analisado.",
+          similarityScore: 100,
+          explanation: "O texto extraído é idêntico ao de outro documento já analisado (mesmo conteúdo, arquivo diferente).",
         });
         continue;
       }
-      if (other.layoutHash === fingerprint.layoutHash && Math.random() < 0.15) {
-        findings.push({
-          matchedRequestId: other.requestId,
-          matchType: "LAYOUT_SIMILARITY",
-          similarityScore: randomInt(70, 90),
-          explanation: "O layout do documento é altamente semelhante a outro caso analisado.",
-        });
+
+      if (other.normalizedText && fingerprint.normalizedText) {
+        const textScore = jaccardSimilarity(fingerprint.normalizedText, other.normalizedText);
+        if (textScore >= TEXT_SIMILARITY_THRESHOLD) {
+          findings.push({
+            matchedRequestId: other.requestId,
+            matchType: "TEXT_SIMILARITY",
+            similarityScore: textScore,
+            explanation: `O texto extraído tem ${textScore}% de sobreposição com outro documento já analisado — pode ser o mesmo modelo/template reutilizado.`,
+          });
+          continue;
+        }
+      }
+
+      if (fingerprint.perceptualHash && other.perceptualHash) {
+        const distance = hammingDistanceHex(fingerprint.perceptualHash, other.perceptualHash);
+        if (distance <= VISUAL_MAX_HAMMING) {
+          const visualScore = Math.round(((64 - distance) / 64) * 100);
+          findings.push({
+            matchedRequestId: other.requestId,
+            matchType: "VISUAL_SIMILARITY",
+            similarityScore: visualScore,
+            explanation: `A imagem do documento é visualmente muito parecida (${visualScore}%) com outro já analisado — pode ser o mesmo arquivo reaproveitado ou levemente editado.`,
+          });
+        }
       }
     }
 
@@ -84,5 +175,4 @@ export class MockDocumentSimilarityService implements DocumentSimilarityService 
   }
 }
 
-export const documentSimilarityService: DocumentSimilarityService =
-  new MockDocumentSimilarityService();
+export const documentSimilarityService: DocumentSimilarityService = new RealDocumentSimilarityService();
