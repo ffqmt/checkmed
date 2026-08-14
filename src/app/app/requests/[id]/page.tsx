@@ -12,10 +12,12 @@ import { Timeline } from "@/components/shared/timeline";
 import { SlaIndicator } from "@/components/shared/sla-indicator";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DocumentViewer } from "@/components/shared/document-viewer";
+import { VerificationChecklist, type ChecklistItem } from "@/components/shared/verification-checklist";
 import { FileText } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { FINAL_RESULT_LABELS, ALERT_SEVERITY_LABELS } from "@/lib/constants";
 import { DisputeButton } from "./dispute-button";
+import { buildVerificationChecklist } from "./checklist";
 
 export default async function ClientRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -29,12 +31,26 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
       disputes: { orderBy: { createdAt: "desc" } },
       documents: { orderBy: { createdAt: "desc" } },
       riskAnalysis: { include: { alerts: { where: { isClientVisible: true }, orderBy: { severity: "desc" } } } },
+      extractedData: true,
+      technicalAnalysis: true,
+      clinicVerification: true,
+      doctorVerification: true,
+      qrCodeVerification: true,
     },
   });
 
   if (!request || request.organizationId !== session?.user.organizationId) notFound();
 
   const canDispute = request.completedAt !== null && request.disputes.every((d) => ["RESOLVED", "REJECTED", "CANCELLED"].includes(d.status));
+
+  const checklistItems = buildVerificationChecklist({
+    extractedData: request.extractedData,
+    technicalAnalysis: request.technicalAnalysis,
+    clinicVerification: request.clinicVerification,
+    doctorVerification: request.doctorVerification,
+    qrCodeVerification: request.qrCodeVerification,
+    riskAnalysisAlerts: request.riskAnalysis?.alerts ?? [],
+  });
 
   return (
     <div className="space-y-6">
@@ -95,6 +111,15 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">O que foi verificado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <VerificationChecklist items={checklistItems} />
+            </CardContent>
+          </Card>
 
           {request.riskAnalysis && request.riskAnalysis.alerts.length > 0 && (
             <Card>
