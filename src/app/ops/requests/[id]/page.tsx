@@ -12,15 +12,16 @@ import { Timeline } from "@/components/shared/timeline";
 import { SlaIndicator } from "@/components/shared/sla-indicator";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DocumentViewer } from "@/components/shared/document-viewer";
+import { Field } from "@/components/shared/field";
+import { EvidenceFileLink } from "@/components/shared/evidence-file-link";
 import { ContactAttemptForm } from "@/components/requests/contact-attempt-form";
 import { WhatsAppPanel } from "@/components/requests/whatsapp-panel";
 import { FinalReportForm } from "@/components/requests/final-report-form";
 import { ApproveReportButton } from "@/components/requests/approve-report-button";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { VERIFICATION_STATUS_LABELS, QR_STATUS_LABELS, ALERT_SEVERITY_LABELS, FINAL_RESULT_LABELS, PRIORITY_LABELS } from "@/lib/constants";
+import { VERIFICATION_STATUS_LABELS, QR_STATUS_LABELS, ALERT_SEVERITY_LABELS, FINAL_RESULT_LABELS, PRIORITY_LABELS, CID_REDACTED_LABEL } from "@/lib/constants";
 import { permissions } from "@/lib/rbac";
-import { FileText, Link2, ScanSearch, Fingerprint, Gauge, Phone, History, ScrollText, Paperclip } from "lucide-react";
-import { storageAdapter } from "@/server/services/storage.service";
+import { FileText, Link2, ScanSearch, Fingerprint, Gauge, Phone, History, ScrollText } from "lucide-react";
 
 export default async function OpsRequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -265,7 +266,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
                 <Field label="Data de emissão" value={formatDate(request.extractedData.certificateIssueDate)} />
                 <Field label="Dias de afastamento" value={request.extractedData.absenceDays?.toString()} />
                 <Field label="Período" value={`${formatDate(request.extractedData.absenceStartDate)} a ${formatDate(request.extractedData.absenceEndDate)}`} />
-                <Field label="CID" value="Restrito — dado sensível" sensitive />
+                <Field label="CID" value={CID_REDACTED_LABEL} sensitive />
                 <Field label="Clínica/Hospital" value={request.extractedData.clinicName} />
                 <Field label="CNPJ" value={request.extractedData.clinicCnpj} />
                 <Field label="CNES" value={request.extractedData.clinicCnes} />
@@ -625,15 +626,6 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
   );
 }
 
-function Field({ label, value, sensitive, mono }: { label: string; value?: string | null; sensitive?: boolean; mono?: boolean }) {
-  return (
-    <div>
-      <p className="text-muted-foreground">{label}</p>
-      <p className={`font-medium ${sensitive ? "text-muted-foreground italic" : ""} ${mono ? "font-mono text-xs" : ""}`}>{value || "—"}</p>
-    </div>
-  );
-}
-
 function ScoreField({ label, value, bare }: { label: string; value: number | null; bare?: boolean }) {
   const tone = value === null ? "text-muted-foreground" : value >= 55 ? "text-status-danger" : value >= 30 ? "text-status-warning" : "text-status-success";
   const content = (
@@ -644,19 +636,4 @@ function ScoreField({ label, value, bare }: { label: string; value: number | nul
   );
   if (bare) return content;
   return <div className="rounded-lg border border-border p-3">{content}</div>;
-}
-
-async function EvidenceFileLink({ file }: { file: { storageBucket: string; storagePath: string; originalFileName: string } }) {
-  const signedUrl = await storageAdapter.getSignedUrl(file.storageBucket, file.storagePath, 600);
-  return (
-    <a
-      href={signedUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
-    >
-      <Paperclip className="size-3.5" />
-      {file.originalFileName}
-    </a>
-  );
 }

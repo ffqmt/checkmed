@@ -67,7 +67,9 @@ export function buildVerificationChecklist(request: RequestForChecklist): Checkl
     }
   }
 
-  // 3. CID-10 --------------------------------------------------------------
+  // 3. CID-10 ---------------------------------------------------------------
+  // The code value itself is never named here — see CID_REDACTED_LABEL in
+  // lib/constants.ts for why — only whether the format/range check passed.
   if (!extractedData) {
     items.push({ label: "Código CID", status: "pending", description: "Aguardando leitura do documento." });
   } else if (!extractedData.cidCode) {
@@ -78,8 +80,8 @@ export function buildVerificationChecklist(request: RequestForChecklist): Checkl
       label: "Código CID",
       status: cid.valid ? "ok" : "attention",
       description: cid.valid
-        ? `Código "${extractedData.cidCode}" com formato e faixa compatíveis com a classificação CID-10.`
-        : `Código "${extractedData.cidCode}" não corresponde a um formato/faixa reconhecidos da classificação CID-10.`,
+        ? "Código informado tem formato e faixa compatíveis com a classificação CID-10."
+        : "Código informado não corresponde a um formato/faixa reconhecidos da classificação CID-10.",
     });
   }
 

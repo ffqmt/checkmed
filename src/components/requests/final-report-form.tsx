@@ -3,12 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileCheck2 } from "lucide-react";
+import { FileCheck2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { generateFinalReport } from "@/server/actions/final-reports";
+import { generateFinalReport, suggestFinalReportDraft } from "@/server/actions/final-reports";
 import { FINAL_RESULT_LABELS } from "@/lib/constants";
 
 export function FinalReportForm({ requestId, suggestedResult }: { requestId: string; suggestedResult?: string }) {
@@ -17,7 +17,30 @@ export function FinalReportForm({ requestId, suggestedResult }: { requestId: str
   const [limitations, setLimitations] = React.useState("");
   const [clientNotes, setClientNotes] = React.useState("");
   const [pending, setPending] = React.useState(false);
+  const [suggesting, setSuggesting] = React.useState(false);
+  const [aiSuggested, setAiSuggested] = React.useState(false);
   const router = useRouter();
+
+  async function handleSuggest() {
+    setSuggesting(true);
+    try {
+      const res = await suggestFinalReportDraft(requestId);
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      setResult(res.result);
+      setSummary(res.executiveSummary);
+      setLimitations(res.limitations || "");
+      setClientNotes(res.clientVisibleNotes || "");
+      setAiSuggested(true);
+      toast.success("Sugestão gerada — revise antes de emitir.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível gerar a sugestão.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function handleSubmit() {
     setPending(true);
@@ -39,6 +62,14 @@ export function FinalReportForm({ requestId, suggestedResult }: { requestId: str
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-muted-foreground">
+          {aiSuggested ? "Rascunho sugerido por IA — revise antes de emitir." : "Preencha manualmente ou peça uma sugestão inicial."}
+        </p>
+        <Button type="button" variant="outline" size="sm" onClick={handleSuggest} disabled={suggesting}>
+          <Sparkles /> {suggesting ? "Gerando..." : "Sugestão da IA"}
+        </Button>
+      </div>
       <div className="space-y-1.5">
         <Label>Resultado</Label>
         <Select value={result} onValueChange={setResult}>

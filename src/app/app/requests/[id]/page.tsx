@@ -13,9 +13,17 @@ import { SlaIndicator } from "@/components/shared/sla-indicator";
 import { EmptyState } from "@/components/shared/empty-state";
 import { DocumentViewer } from "@/components/shared/document-viewer";
 import { VerificationChecklist, type ChecklistItem } from "@/components/shared/verification-checklist";
-import { FileText } from "lucide-react";
+import { Field } from "@/components/shared/field";
+import { EvidenceFileLink } from "@/components/shared/evidence-file-link";
+import { FileText, ScanSearch, Phone } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { FINAL_RESULT_LABELS, ALERT_SEVERITY_LABELS } from "@/lib/constants";
+import {
+  FINAL_RESULT_LABELS,
+  ALERT_SEVERITY_LABELS,
+  CID_REDACTED_LABEL,
+  CONTACT_TYPE_LABELS,
+  CONTACT_RESULT_LABELS,
+} from "@/lib/constants";
 import { DisputeButton } from "./dispute-button";
 import { buildVerificationChecklist } from "./checklist";
 
@@ -36,6 +44,7 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
       clinicVerification: true,
       doctorVerification: true,
       qrCodeVerification: true,
+      contactAttempts: { where: { isClientVisible: true }, include: { evidenceFile: true }, orderBy: { attemptedAt: "desc" } },
     },
   });
 
@@ -67,15 +76,18 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
       </div>
 
       <Card>
-        <CardContent className="p-5">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
           <StepperWorkflow status={request.status} />
+          <SlaIndicator dueAt={request.slaDueAt} completedAt={request.completedAt} showAbsoluteDate />
         </CardContent>
       </Card>
 
       <Tabs defaultValue="overview">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="document">Documento</TabsTrigger>
+          <TabsTrigger value="extracted">Dados extraídos</TabsTrigger>
+          <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="report">Parecer</TabsTrigger>
         </TabsList>
@@ -114,6 +126,30 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
 
           <Card>
             <CardHeader>
+              <CardTitle className="text-base">Resumo do atestado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {request.extractedData ? (
+                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <Field label="Médico responsável" value={request.extractedData.doctorName} />
+                  <Field label="Clínica/instituição" value={request.extractedData.clinicName} />
+                  <Field label="Data de emissão" value={formatDate(request.extractedData.certificateIssueDate)} />
+                  <Field label="Dias de afastamento" value={request.extractedData.absenceDays?.toString()} />
+                  <Field
+                    label="Período de afastamento"
+                    value={`${formatDate(request.extractedData.absenceStartDate)} a ${formatDate(request.extractedData.absenceEndDate)}`}
+                  />
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  A leitura do documento ainda está em andamento — os dados extraídos aparecem aqui assim que concluída.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base">O que foi verificado</CardTitle>
             </CardHeader>
             <CardContent>
@@ -146,7 +182,7 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
             <CardHeader>
               <CardTitle className="text-base">Dados da solicitação</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <CardContent className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
               <div>
                 <p className="text-muted-foreground">Recebido pela empresa em</p>
                 <p className="font-medium">{formatDate(request.receivedByCompanyAt)}</p>
@@ -154,10 +190,6 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
               <div>
                 <p className="text-muted-foreground">Criada em</p>
                 <p className="font-medium">{formatDateTime(request.createdAt)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">SLA</p>
-                <SlaIndicator dueAt={request.slaDueAt} completedAt={request.completedAt} />
               </div>
               <div>
                 <p className="text-muted-foreground">Documentos enviados</p>
@@ -172,6 +204,63 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
             <DocumentViewer file={request.documents[0]} />
           ) : (
             <EmptyState icon={FileText} title="Nenhum documento anexado" />
+          )}
+        </TabsContent>
+
+        <TabsContent value="extracted">
+          {request.extractedData ? (
+            <Card>
+              <CardContent className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+                <Field label="Médico" value={request.extractedData.doctorName} />
+                <Field label="CRM" value={`${request.extractedData.doctorCrm ?? "—"} / ${request.extractedData.doctorCrmUf ?? "—"}`} />
+                <Field label="Data de emissão" value={formatDate(request.extractedData.certificateIssueDate)} />
+                <Field label="Dias de afastamento" value={request.extractedData.absenceDays?.toString()} />
+                <Field
+                  label="Período"
+                  value={`${formatDate(request.extractedData.absenceStartDate)} a ${formatDate(request.extractedData.absenceEndDate)}`}
+                />
+                <Field label="CID" value={CID_REDACTED_LABEL} sensitive />
+                <Field label="Clínica/Hospital" value={request.extractedData.clinicName} />
+                <Field label="CNPJ" value={request.extractedData.clinicCnpj} />
+                <Field label="CNES" value={request.extractedData.clinicCnes} />
+                <Field label="Endereço" value={request.extractedData.clinicAddress} />
+                <Field label="Telefone" value={request.extractedData.clinicPhone} />
+                <Field label="E-mail" value={request.extractedData.clinicEmail} />
+                <Field label="QR Code / link de autenticação" value={request.extractedData.authenticationUrl} />
+                {Array.isArray(request.extractedData.extractionWarningsJson) && request.extractedData.extractionWarningsJson.length > 0 && (
+                  <div className="col-span-2 rounded-lg bg-status-warning/10 p-3 text-sm text-status-warning">
+                    {(request.extractedData.extractionWarningsJson as string[]).map((w, i) => (
+                      <p key={i}>{w}</p>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <EmptyState icon={ScanSearch} title="Extração ainda não concluída" />
+          )}
+        </TabsContent>
+
+        <TabsContent value="contacts" className="space-y-2">
+          {request.contactAttempts.length === 0 ? (
+            <EmptyState icon={Phone} title="Nenhum contato registrado" description="Contatos com a clínica/hospital emissor aparecem aqui quando relevantes para o seu caso." />
+          ) : (
+            request.contactAttempts.map((c) => (
+              <Card key={c.id}>
+                <CardContent className="p-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">{c.contactTarget}</p>
+                    <Badge variant="outline">{CONTACT_RESULT_LABELS[c.result]}</Badge>
+                  </div>
+                  <p className="text-muted-foreground">
+                    {c.contactValue} · {CONTACT_TYPE_LABELS[c.contactType]}
+                  </p>
+                  {c.notes && <p className="mt-1">{c.notes}</p>}
+                  <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(c.attemptedAt)}</p>
+                  {c.evidenceFile && <EvidenceFileLink file={c.evidenceFile} />}
+                </CardContent>
+              </Card>
+            ))
           )}
         </TabsContent>
 

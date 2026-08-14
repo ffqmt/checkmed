@@ -9,9 +9,140 @@ import { notificationService } from "@/server/services/notification.service";
 import { dispatchWebhookEvent } from "@/server/services/webhook-dispatch.service";
 import { generateFinalReportSchema } from "@/lib/validations/final-report";
 import { permissions } from "@/lib/rbac";
+import { suggestFinalReport, type ReportSuggestionContext } from "@/server/services/adapters/claude-report-suggestion.adapter";
 import type { FinalResult } from "@prisma/client";
 
 const CONSEQUENTIAL_RESULTS: FinalResult[] = ["INCONSISTENT", "NOT_CONFIRMED", "NOT_RECOGNIZED_BY_INSTITUTION"];
+
+/** Draft-only: gathers the same verification data an analyst already sees on the ops page and asks Claude to propose a starting point — never writes anything, never touches the request. The analyst still reviews and calls generateFinalReport themselves. */
+export async function suggestFinalReportDraft(requestId: string) {
+  const session = await auth();
+  if (!session?.user || !permissions.reviewAsAnalyst(session.user.role)) {
+    throw new Error("Você não tem permissão para gerar sugestões de parecer.");
+  }
+
+  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({
+    where: { id: requestId },
+    include: {
+      riskAnalysis: { include: { alerts: true } },
+      doctorVerification: true,
+      clinicVerification: true,
+      qrCodeVerification: true,
+      technicalAnalysis: true,
+      extractedData: true,
+      contactAttempts: true,
+      similarityMatches: true,
+    },
+  });
+
+  const context: ReportSuggestionContext = {
+    riskAnalysis: request.riskAnalysis
+      ? {
+          score: request.riskAnalysis.score,
+          riskLevel: request.riskAnalysis.riskLevel,
+          summary: request.riskAnalysis.summary,
+          positiveIndicators: (request.riskAnalysis.positiveIndicatorsJson as string[] | null) ?? [],
+          negativeIndicators: (request.riskAnalysis.negativeIndicatorsJson as string[] | null) ?? [],
+          alerts: request.riskAnalysis.alerts.map((a) => ({ title: a.title, description: a.description, severity: a.severity, type: a.type })),
+        }
+      : null,
+    doctorVerification: request.doctorVerification
+      ? {
+          informedDoctorName: request.doctorVerification.informedDoctorName,
+          officialDoctorName: request.doctorVerification.officialDoctorName,
+          informedCrm: request.doctorVerification.informedCrm,
+          informedCrmUf: request.doctorVerification.informedCrmUf,
+          officialCrm: request.doctorVerification.officialCrm,
+          officialCrmUf: request.doctorVerification.officialCrmUf,
+          registrationStatus: request.doctorVerification.registrationStatus,
+          specialty: request.doctorVerification.specialty,
+          status: request.doctorVerification.status,
+          notes: request.doctorVerification.notes,
+        }
+      : null,
+    clinicVerification: request.clinicVerification
+      ? {
+          informedClinicName: request.clinicVerification.informedClinicName,
+          officialName: request.clinicVerification.officialName,
+          informedCnpj: request.clinicVerification.informedCnpj,
+          officialCnpj: request.clinicVerification.officialCnpj,
+          officialAddress: request.clinicVerification.officialAddress,
+          status: request.clinicVerification.status,
+          notes: request.clinicVerification.notes,
+        }
+      : null,
+    qrCodeVerification: request.qrCodeVerification
+      ? {
+          status: request.qrCodeVerification.status,
+          domain: request.qrCodeVerification.domain,
+          isDomainTrusted: request.qrCodeVerification.isDomainTrusted,
+          httpStatus: request.qrCodeVerification.httpStatus,
+          notes: request.qrCodeVerification.notes,
+        }
+      : null,
+    technicalAnalysis: request.technicalAnalysis
+      ? {
+          metadataRiskScore: request.technicalAnalysis.metadataRiskScore,
+          manipulationRiskScore: request.technicalAnalysis.manipulationRiskScore,
+          aiGenerationRiskScore: request.technicalAnalysis.aiGenerationRiskScore,
+          contentAuthenticityRiskScore: request.technicalAnalysis.contentAuthenticityRiskScore,
+          compressionInconsistencyScore: request.technicalAnalysis.compressionInconsistencyScore,
+          fontInconsistencyScore: request.technicalAnalysis.fontInconsistencyScore,
+          layerInconsistencyScore: request.technicalAnalysis.layerInconsistencyScore,
+          signatureStampInconsistencyScore: request.technicalAnalysis.signatureStampInconsistencyScore,
+          externalProviderName: request.technicalAnalysis.externalProviderName,
+          findings: (request.technicalAnalysis.findingsJson as { area: string; description: string; severity: string }[] | null) ?? [],
+        }
+      : null,
+    extractedData: request.extractedData
+      ? {
+          doctorName: request.extractedData.doctorName,
+          doctorCrm: request.extractedData.doctorCrm,
+          doctorCrmUf: request.extractedData.doctorCrmUf,
+          certificateIssueDate: request.extractedData.certificateIssueDate?.toISOString() ?? null,
+          absenceDays: request.extractedData.absenceDays,
+          absenceStartDate: request.extractedData.absenceStartDate?.toISOString() ?? null,
+          absenceEndDate: request.extractedData.absenceEndDate?.toISOString() ?? null,
+          clinicName: request.extractedData.clinicName,
+          clinicCnpj: request.extractedData.clinicCnpj,
+          clinicCnes: request.extractedData.clinicCnes,
+          clinicAddress: request.extractedData.clinicAddress,
+          extractionWarnings: (request.extractedData.extractionWarningsJson as string[] | null) ?? [],
+          // cidCode, rawText, qrCodeContent deliberately excluded — never sent to the model.
+        }
+      : null,
+    contactAttempts: request.contactAttempts.map((c) => ({
+      contactType: c.contactType,
+      contactTarget: c.contactTarget,
+      result: c.result,
+      attemptedAt: c.attemptedAt.toISOString(),
+      contactedPersonName: c.contactedPersonName,
+      contactedPersonRole: c.contactedPersonRole,
+      notes: c.notes,
+    })),
+    similarityMatches: request.similarityMatches.map((m) => ({
+      matchType: m.matchType,
+      similarityScore: m.similarityScore,
+      explanation: m.explanation,
+    })),
+  };
+
+  try {
+    const suggestion = await suggestFinalReport(context);
+    await recordAuditLog({
+      organizationId: request.organizationId,
+      userId: session.user.id,
+      requestId,
+      action: "FINAL_REPORT_AI_SUGGESTION_GENERATED",
+      entityType: "MedicalCertificateRequest",
+      entityId: requestId,
+    });
+    return { success: true, ...suggestion };
+  } catch (error) {
+    console.error("Falha ao gerar sugestão de parecer por IA", error);
+    return { error: "Não foi possível gerar a sugestão agora. Você pode escrever o parecer manualmente." };
+  }
+}
 
 export async function generateFinalReport(input: unknown) {
   const session = await auth();

@@ -10,6 +10,8 @@ import type {
   AlertSeverity,
   DataPrivacyRequestType,
   DataPrivacyRequestStatus,
+  ContactType,
+  ContactResult,
 } from "@prisma/client";
 
 /**
@@ -136,6 +138,28 @@ export const DATA_PRIVACY_REQUEST_STATUS_LABELS: Record<DataPrivacyRequestStatus
   COMPLETED: "Concluída",
   REJECTED: "Rejeitada",
 };
+
+export const CONTACT_TYPE_LABELS: Record<ContactType, string> = {
+  PHONE: "Telefone",
+  EMAIL: "E-mail",
+  WHATSAPP: "WhatsApp",
+  PORTAL: "Portal",
+  OTHER: "Outro",
+};
+
+export const CONTACT_RESULT_LABELS: Record<ContactResult, string> = {
+  CONFIRMED_ISSUANCE: "Emissão confirmada pela instituição",
+  DENIED_ISSUANCE: "Instituição não reconheceu a emissão",
+  NOT_FOUND: "Contato não localizado",
+  REQUESTED_PATIENT_AUTHORIZATION: "Instituição solicitou autorização do paciente",
+  NO_RESPONSE: "Sem resposta da instituição",
+  INVALID_CONTACT: "Canal de contato inválido",
+  CALL_BACK_LATER: "Instituição solicitou novo contato posterior",
+  OTHER: "Outro resultado registrado",
+};
+
+/** The CID (diagnosis) code is treated as restricted even for internal staff — Brazilian labor law generally keeps an employer from knowing the specific diagnosis behind a medical leave, only that it's medically justified. Single source for this label so the internal and client-facing views can never drift apart. */
+export const CID_REDACTED_LABEL = "Restrito — dado sensível";
 
 export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
   OPEN: "Aberta",

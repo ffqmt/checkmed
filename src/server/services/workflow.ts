@@ -138,7 +138,11 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
   });
 
   // 4. CID-10 validation — deterministic, free, no vendor. Confirms format
-  // and chapter range, not the full granular catalog (see lib/cid10.ts). ----
+  // and chapter range, not the full granular catalog (see lib/cid10.ts).
+  // The code itself is never named in the client-visible description —
+  // Brazilian labor law generally keeps the specific diagnosis from the
+  // employer (see CID_REDACTED_LABEL in lib/constants.ts); only whether the
+  // format/range check passed is reported. -------------------------------
   const cidValidation = structured.cidCode ? { code: structured.cidCode, valid: validateCid10(structured.cidCode).valid } : null;
   await recordTimelineEvent({
     requestId,
@@ -147,8 +151,8 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     description: !structured.cidCode
       ? "Nenhum código CID identificado no documento."
       : cidValidation!.valid
-        ? `Código "${structured.cidCode}" com formato e faixa compatíveis com a classificação CID-10.`
-        : `Código "${structured.cidCode}" não corresponde a um formato/faixa reconhecidos da classificação CID-10.`,
+        ? "Código informado tem formato e faixa compatíveis com a classificação CID-10."
+        : "Código informado não corresponde a um formato/faixa reconhecidos da classificação CID-10.",
     isClientVisible: true,
   });
 
