@@ -170,6 +170,31 @@ export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
   CANCELLED: "Cancelada",
 };
 
+export const DISPUTE_STATUS_TONE: Record<
+  DisputeStatus,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
+  OPEN: "warning",
+  IN_REVIEW: "info",
+  WAITING_ADDITIONAL_INFORMATION: "warning",
+  RESOLVED: "success",
+  REJECTED: "neutral",
+  CANCELLED: "neutral",
+};
+
+/** The 6 native DisputeStatus values, in pipeline order — used by the disputes Kanban board and any UI that needs the full ordered set. */
+export const DISPUTE_STATUS_ORDER: DisputeStatus[] = [
+  "OPEN",
+  "IN_REVIEW",
+  "WAITING_ADDITIONAL_INFORMATION",
+  "RESOLVED",
+  "REJECTED",
+  "CANCELLED",
+];
+
+/** Non-terminal dispute statuses — the default view for ops/client dispute queues before any filter is applied. */
+export const OPEN_DISPUTE_STATUSES: DisputeStatus[] = ["OPEN", "IN_REVIEW", "WAITING_ADDITIONAL_INFORMATION"];
+
 export const ALERT_SEVERITY_LABELS: Record<AlertSeverity, string> = {
   INFO: "Informativo",
   LOW: "Baixa",

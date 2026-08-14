@@ -1,50 +1,113 @@
-import Link from "next/link";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/shared/empty-state";
-import { DISPUTE_STATUS_LABELS } from "@/lib/constants";
-import { formatDateTime } from "@/lib/utils";
-import { ShieldAlert } from "lucide-react";
+import { DataTable } from "@/components/shared/data-table";
+import { FilterBar } from "@/components/shared/filter-bar";
+import { Pagination } from "@/components/shared/pagination";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
+import { ViewToggle } from "@/components/shared/view-toggle";
+import { QuickFilters } from "@/components/shared/quick-filters";
+import { internalDisputeColumns } from "@/components/requests/dispute-columns";
+import { DisputeKanbanBoard } from "@/components/requests/dispute-kanban-board";
+import { DISPUTE_STATUS_LABELS, OPEN_DISPUTE_STATUSES } from "@/lib/constants";
+import type { DisputeStatus, Prisma } from "@prisma/client";
 
-export default async function OpsDisputesPage() {
-  const disputes = await prisma.dispute.findMany({
-    where: { status: { in: ["OPEN", "IN_REVIEW", "WAITING_ADDITIONAL_INFORMATION"] } },
-    include: { request: { include: { organization: true } }, openedBy: true, assignedTo: true },
-    orderBy: { createdAt: "desc" },
-  });
+const KANBAN_LIMIT = 300;
+
+export default async function OpsDisputesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; status?: string; assignedToMe?: string; unassigned?: string; all?: string; page?: string; view?: string }>;
+}) {
+  const session = await auth();
+  const params = await searchParams;
+  const isKanban = params.view === "kanban";
+
+  // Same reasoning as ops/queue: the open-only default fits the list (a
+  // queue of pending disputes), but Kanban has Resolvida/Indeferida/Cancelada
+  // columns that would stay empty forever under that default.
+  const where: Prisma.DisputeWhereInput = params.status
+    ? { status: params.status as DisputeStatus }
+    : params.all === "1" || isKanban
+      ? {}
+      : { status: { in: OPEN_DISPUTE_STATUSES } };
+
+  if (params.q) where.request = { employeeName: { contains: params.q, mode: "insensitive" } };
+  if (params.assignedToMe === "1") where.assignedToUserId = session!.user.id;
+  else if (params.unassigned === "1") where.assignedToUserId = null;
+
+  const page = Math.max(1, Number(params.page) || 1);
+
+  const paginationArgs: { skip?: number; take: number } = isKanban
+    ? { take: KANBAN_LIMIT }
+    : { skip: (page - 1) * DEFAULT_PAGE_SIZE, take: DEFAULT_PAGE_SIZE };
+
+  const [totalCount, disputes] = await Promise.all([
+    isKanban ? Promise.resolve(0) : prisma.dispute.count({ where }),
+    prisma.dispute.findMany({
+      where,
+      include: { request: { include: { organization: true } }, openedBy: true, assignedTo: true },
+      orderBy: { createdAt: "desc" },
+      ...paginationArgs,
+    }),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / DEFAULT_PAGE_SIZE));
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold">Contestações</h2>
-        <p className="text-sm text-muted-foreground">Casos contestados por clientes que aguardam tratamento.</p>
+        <p className="text-sm text-muted-foreground">Casos contestados por clientes.</p>
       </div>
 
-      {disputes.length === 0 ? (
-        <EmptyState icon={ShieldAlert} title="Nenhuma contestação em aberto" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterBar
+          searchPlaceholder="Buscar por colaborador..."
+          selects={[{ paramName: "status", placeholder: "Status", options: Object.entries(DISPUTE_STATUS_LABELS).map(([value, label]) => ({ value, label })) }]}
+        />
+        <ViewToggle />
+      </div>
+
+      <QuickFilters
+        filters={[
+          { key: "mine", label: "Minhas atribuídas", params: { assignedToMe: "1" } },
+          { key: "unassigned", label: "Não atribuídas", params: { unassigned: "1" } },
+          { key: "open", label: "Abertas", params: { all: "", status: "" } },
+          { key: "all", label: "Todas", params: { all: "1" } },
+        ]}
+      />
+
+      {isKanban ? (
+        <DisputeKanbanBoard
+          hrefBase="/ops/requests"
+          disputes={disputes.map((d) => ({
+            id: d.id,
+            requestId: d.requestId,
+            employeeName: d.request.employeeName,
+            reason: d.reason,
+            status: d.status,
+            createdAt: d.createdAt,
+            organizationName: d.request.organization.name,
+          }))}
+        />
       ) : (
-        <div className="space-y-2">
-          {disputes.map((d) => (
-            <Link key={d.id} href={`/ops/requests/${d.requestId}`}>
-              <Card className="transition-colors hover:bg-muted/30">
-                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div>
-                    <p className="text-sm font-medium">{d.request.employeeName}</p>
-                    <p className="text-xs text-muted-foreground">{d.request.organization.name} · {d.reason}</p>
-                    <p className="text-xs text-muted-foreground">Aberta por {d.openedBy.name} em {formatDateTime(d.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {d.assignedTo ? `Responsável: ${d.assignedTo.name}` : "Não atribuída"}
-                    </span>
-                    <Badge variant="warning">{DISPUTE_STATUS_LABELS[d.status]}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <>
+          <DataTable
+            columns={internalDisputeColumns}
+            data={disputes.map((d) => ({
+              id: d.id,
+              requestId: d.requestId,
+              employeeName: d.request.employeeName,
+              reason: d.reason,
+              status: d.status,
+              createdAt: d.createdAt,
+              organizationName: d.request.organization.name,
+              assignedToName: d.assignedTo?.name ?? null,
+            }))}
+            emptyTitle="Nenhuma contestação em aberto"
+          />
+          <Pagination page={page} totalPages={totalPages} />
+        </>
       )}
     </div>
   );
