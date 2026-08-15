@@ -20,12 +20,6 @@ export async function GET(request: NextRequest) {
 /** POST — incoming messages and delivery-status callbacks from the WhatsApp provider. */
 export async function POST(request: NextRequest) {
   const payload = await request.json();
-
-  if (payload?.status) {
-    await whatsAppService.updateDeliveryStatus(payload);
-  } else {
-    await whatsAppService.handleIncomingWebhook(payload);
-  }
-
+  await whatsAppService.processWebhookPayload(payload);
   return NextResponse.json({ received: true });
 }

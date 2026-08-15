@@ -1,14 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import type { WhatsAppProvider } from "@prisma/client";
+import type { WhatsAppProvider, WhatsAppMessageStatus } from "@prisma/client";
 import { MetaWhatsAppAdapter } from "./adapters/meta-whatsapp.adapter";
 import { TwilioWhatsAppAdapter } from "./adapters/twilio-whatsapp.adapter";
 import { GenericWhatsAppAdapter } from "./adapters/generic-whatsapp.adapter";
 import type { WhatsAppAdapter } from "./adapters/whatsapp-adapter.types";
 
-function adapterFor(provider: WhatsAppProvider): WhatsAppAdapter {
+type IntegrationConfig = { phoneNumberId: string | null; accessTokenEncrypted: string | null } | null;
+
+function adapterFor(provider: WhatsAppProvider, integration: IntegrationConfig): WhatsAppAdapter {
   switch (provider) {
     case "META_CLOUD_API":
-      return new MetaWhatsAppAdapter();
+      return new MetaWhatsAppAdapter({
+        phoneNumberId: integration?.phoneNumberId ?? null,
+        accessTokenEncrypted: integration?.accessTokenEncrypted ?? null,
+      });
     case "TWILIO":
       return new TwilioWhatsAppAdapter();
     default:
@@ -30,8 +35,8 @@ export interface WhatsAppService {
     requestId?: string,
   ): Promise<void>;
   sendTextMessage(organizationId: string, to: string, message: string, requestId?: string): Promise<void>;
-  handleIncomingWebhook(payload: unknown): Promise<void>;
-  updateDeliveryStatus(payload: unknown): Promise<void>;
+  /** Meta's real webhook shape: {object, entry:[{changes:[{value:{metadata,statuses?,messages?}}]}]} — see below. */
+  processWebhookPayload(payload: unknown): Promise<void>;
 }
 
 export class DefaultWhatsAppService implements WhatsAppService {
@@ -44,7 +49,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
   ): Promise<void> {
     const integration = await prisma.whatsAppIntegration.findUnique({ where: { organizationId } });
     const provider = integration?.provider ?? "OTHER";
-    const adapter = adapterFor(provider);
+    const adapter = adapterFor(provider, integration);
 
     const body = sanitizeMessageBody(
       renderTemplate(templateName, variables),
@@ -85,7 +90,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
   async sendTextMessage(organizationId: string, to: string, message: string, requestId?: string): Promise<void> {
     const integration = await prisma.whatsAppIntegration.findUnique({ where: { organizationId } });
     const provider = integration?.provider ?? "OTHER";
-    const adapter = adapterFor(provider);
+    const adapter = adapterFor(provider, integration);
 
     const record = await prisma.whatsAppMessage.create({
       data: {
@@ -118,49 +123,86 @@ export class DefaultWhatsAppService implements WhatsAppService {
     }
   }
 
-  async handleIncomingWebhook(payload: unknown): Promise<void> {
-    const data = payload as {
-      organizationId?: string;
-      from?: string;
-      to?: string;
-      body?: string;
-    };
-    if (!data.organizationId || !data.from || !data.body) return;
+  /**
+   * Meta batches multiple entries/changes per call, and a single "value" can
+   * carry either delivery-status updates or inbound customer messages (or,
+   * in principle, both). There's no organizationId in the payload — the
+   * only way to attribute a webhook to a tenant is the phone_number_id in
+   * value.metadata, looked up against WhatsAppIntegration. A webhook for a
+   * phoneNumberId we don't have on file is silently skipped (nothing to
+   * attach it to), not an error.
+   */
+  async processWebhookPayload(payload: unknown): Promise<void> {
+    const data = payload as MetaWebhookPayload;
+    for (const entry of data.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const value = change.value;
+        const phoneNumberId = value?.metadata?.phone_number_id;
+        if (!value || !phoneNumberId) continue;
 
-    await prisma.whatsAppMessage.create({
-      data: {
-        organizationId: data.organizationId,
-        direction: "INBOUND",
-        fromNumber: data.from,
-        toNumber: data.to ?? "medcheck-sandbox",
-        messageBody: data.body,
-        status: "RECEIVED",
-      },
-    });
+        const integration = await prisma.whatsAppIntegration.findFirst({ where: { phoneNumberId } });
+        if (!integration) continue;
+
+        for (const status of value.statuses ?? []) {
+          await this.applyDeliveryStatus(integration.organizationId, status);
+        }
+        for (const message of value.messages ?? []) {
+          await this.recordInboundMessage(integration.organizationId, phoneNumberId, message);
+        }
+      }
+    }
   }
 
-  async updateDeliveryStatus(payload: unknown): Promise<void> {
-    const data = payload as { providerMessageId?: string; status?: string };
-    if (!data.providerMessageId || !data.status) return;
-
-    const statusMap: Record<string, "DELIVERED" | "READ" | "FAILED"> = {
+  private async applyDeliveryStatus(organizationId: string, status: MetaWebhookStatus): Promise<void> {
+    if (!status.id || !status.status) return;
+    const statusMap: Record<string, WhatsAppMessageStatus> = {
+      sent: "SENT",
       delivered: "DELIVERED",
       read: "READ",
       failed: "FAILED",
     };
-    const mapped = statusMap[data.status.toLowerCase()];
+    const mapped = statusMap[status.status.toLowerCase()];
     if (!mapped) return;
 
     await prisma.whatsAppMessage.updateMany({
-      where: { providerMessageId: data.providerMessageId },
+      where: { providerMessageId: status.id, organizationId },
       data: {
         status: mapped,
         deliveredAt: mapped === "DELIVERED" ? new Date() : undefined,
         readAt: mapped === "READ" ? new Date() : undefined,
+        errorMessage: mapped === "FAILED" ? status.errors?.[0]?.message : undefined,
+      },
+    });
+  }
+
+  private async recordInboundMessage(organizationId: string, phoneNumberId: string, message: MetaWebhookMessage): Promise<void> {
+    if (!message.from) return;
+    await prisma.whatsAppMessage.create({
+      data: {
+        organizationId,
+        direction: "INBOUND",
+        fromNumber: message.from,
+        toNumber: phoneNumberId,
+        messageBody: message.text?.body ?? `[mensagem do tipo "${message.type ?? "desconhecido"}" — sem suporte a texto ainda]`,
+        status: "RECEIVED",
       },
     });
   }
 }
+
+type MetaWebhookStatus = { id?: string; status?: string; errors?: { message?: string }[] };
+type MetaWebhookMessage = { from?: string; type?: string; text?: { body?: string } };
+type MetaWebhookPayload = {
+  entry?: {
+    changes?: {
+      value?: {
+        metadata?: { phone_number_id?: string };
+        statuses?: MetaWebhookStatus[];
+        messages?: MetaWebhookMessage[];
+      };
+    }[];
+  }[];
+};
 
 export const WHATSAPP_TEMPLATES: Record<string, string> = {
   request_received:

@@ -1,27 +1,84 @@
-import { simulateLatency } from "../mock-utils";
+import { decryptSecret } from "@/lib/secret-encryption";
 import type { WhatsAppAdapter, WhatsAppSendResult } from "./whatsapp-adapter.types";
 
-const NOTE = "Nenhum provedor real conectado — mensagem simulada, não foi enviada de fato.";
+const GRAPH_API_VERSION = "v25.0";
+const NOT_CONFIGURED_NOTE = "Nenhum provedor real conectado — mensagem simulada, não foi enviada de fato.";
+
+type MetaConfig = { phoneNumberId: string | null; accessTokenEncrypted: string | null };
+
+type MetaApiSuccess = { messages: { id: string }[] };
+type MetaApiError = { error: { message: string; type: string; code: number; error_subcode?: number } };
+
+function normalizePhoneNumber(to: string): string {
+  return to.replace(/\D/g, "");
+}
 
 /**
- * No real HTTP call is made yet — to go live: call
- * `POST https://graph.facebook.com/v20.0/{phoneNumberId}/messages` with the
- * organization's decrypted access token (see server/actions/whatsapp-integration.ts
- * / lib/secret-encryption.ts) and phoneNumberId, forwarding template name +
- * component variables per Meta's template message schema.
+ * Real Meta Cloud API calls — `POST /{phoneNumberId}/messages`. A successful
+ * response here only means Meta *accepted* the message; final delivery is
+ * reported asynchronously via webhook (see whatsapp.service.ts
+ * processWebhookPayload), which is also where a "failed" status and its
+ * real reason (e.g. an unverified Business Manager account being
+ * restricted from messaging a given country) show up — confirmed live
+ * against a real Meta test app.
  *
- * Until that call exists, this honestly reports SIMULATED (not a fabricated
- * "SENT") regardless of whether an access token has been configured for the
- * organization — a real token unlocks nothing here yet, on its own.
+ * sendTemplateMessage requires a template with a matching name already
+ * created and approved in Meta Business Manager — WHATSAPP_TEMPLATES in
+ * whatsapp.service.ts is only the local display text, it does not create
+ * one. Until an approved template exists, Meta will reject the call with a
+ * clear "template not found" error rather than anything faked here.
  */
 export class MetaWhatsAppAdapter implements WhatsAppAdapter {
-  async sendTemplateMessage(): Promise<WhatsAppSendResult> {
-    await simulateLatency(200, 700);
-    return { providerMessageId: null, status: "SIMULATED", errorMessage: NOTE };
+  constructor(private config: MetaConfig) {}
+
+  private async send(body: Record<string, unknown>): Promise<WhatsAppSendResult> {
+    const { phoneNumberId, accessTokenEncrypted } = this.config;
+    if (!phoneNumberId || !accessTokenEncrypted) {
+      return { providerMessageId: null, status: "SIMULATED", errorMessage: NOT_CONFIGURED_NOTE };
+    }
+
+    let accessToken: string;
+    try {
+      accessToken = decryptSecret(accessTokenEncrypted);
+    } catch (error) {
+      return { providerMessageId: null, status: "FAILED", errorMessage: `Falha ao decifrar o token de acesso: ${(error as Error).message}` };
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch (error) {
+      return { providerMessageId: null, status: "FAILED", errorMessage: `Não foi possível conectar à Meta Graph API: ${(error as Error).message}` };
+    }
+
+    const json = (await response.json()) as MetaApiSuccess | MetaApiError;
+    if (!response.ok || "error" in json) {
+      const message = "error" in json ? json.error.message : `Meta retornou HTTP ${response.status}.`;
+      return { providerMessageId: null, status: "FAILED", errorMessage: message };
+    }
+
+    return { providerMessageId: json.messages[0]?.id ?? null, status: "SENT" };
   }
 
-  async sendTextMessage(): Promise<WhatsAppSendResult> {
-    await simulateLatency(200, 700);
-    return { providerMessageId: null, status: "SIMULATED", errorMessage: NOTE };
+  async sendTemplateMessage(to: string, templateName: string, variables: Record<string, string>): Promise<WhatsAppSendResult> {
+    const parameters = Object.values(variables).map((value) => ({ type: "text", text: value }));
+    return this.send({
+      to: normalizePhoneNumber(to),
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: "pt_BR" },
+        ...(parameters.length ? { components: [{ type: "body", parameters }] } : {}),
+      },
+    });
+  }
+
+  async sendTextMessage(to: string, message: string): Promise<WhatsAppSendResult> {
+    return this.send({ to: normalizePhoneNumber(to), type: "text", text: { body: message } });
   }
 }
