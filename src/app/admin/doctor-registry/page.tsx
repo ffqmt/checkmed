@@ -1,15 +1,39 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/shared/data-table";
+import { FilterBar } from "@/components/shared/filter-bar";
+import { Pagination } from "@/components/shared/pagination";
+import { DEFAULT_PAGE_SIZE } from "@/lib/pagination";
+import { doctorColumns } from "./doctor-columns";
 import { formatDateTime } from "@/lib/utils";
+import type { Prisma } from "@prisma/client";
 
 const ALL_UFS = [
   "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
   "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
 ];
 
-export default async function AdminDoctorRegistryPage() {
-  const [total, regularTotal, byUf, recent] = await Promise.all([
+export default async function AdminDoctorRegistryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; uf?: string; status?: string; page?: string }>;
+}) {
+  const params = await searchParams;
+
+  const where: Prisma.VerifiedDoctorWhereInput = {};
+  if (params.q) {
+    where.OR = [
+      { officialName: { contains: params.q, mode: "insensitive" } },
+      { crm: { contains: params.q, mode: "insensitive" } },
+    ];
+  }
+  if (params.uf) where.uf = params.uf;
+  if (params.status) where.registrationStatus = params.status;
+
+  const page = Math.max(1, Number(params.page) || 1);
+
+  const [total, regularTotal, byUf, statuses, filteredTotal, doctors] = await Promise.all([
     prisma.verifiedDoctor.count(),
     prisma.verifiedDoctor.count({ where: { registrationStatus: "Regular" } }),
     prisma.verifiedDoctor.groupBy({
@@ -18,12 +42,20 @@ export default async function AdminDoctorRegistryPage() {
       _max: { verifiedAt: true },
       orderBy: { uf: "asc" },
     }),
-    prisma.verifiedDoctor.findMany({ orderBy: { verifiedAt: "desc" }, take: 8 }),
+    prisma.verifiedDoctor.groupBy({ by: ["registrationStatus"], orderBy: { registrationStatus: "asc" } }),
+    prisma.verifiedDoctor.count({ where }),
+    prisma.verifiedDoctor.findMany({
+      where,
+      orderBy: { verifiedAt: "desc" },
+      skip: (page - 1) * DEFAULT_PAGE_SIZE,
+      take: DEFAULT_PAGE_SIZE,
+    }),
   ]);
 
   const byUfMap = new Map(byUf.map((r) => [r.uf, r]));
   const covered = ALL_UFS.filter((uf) => byUfMap.has(uf));
   const missing = ALL_UFS.filter((uf) => !byUfMap.has(uf));
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / DEFAULT_PAGE_SIZE));
 
   return (
     <div className="space-y-6">
@@ -31,7 +63,7 @@ export default async function AdminDoctorRegistryPage() {
         <h2 className="text-lg font-semibold">Cadastro interno de médicos (CRM)</h2>
         <p className="text-sm text-muted-foreground">
           Cache de médicos confirmados manualmente junto ao portal do CFM. Usado para validar automaticamente um CRM já
-          verificado antes; sem entrada aqui, a validação de médico permanece honesta ("sem integração ainda") em vez de
+          verificado antes; sem entrada aqui, a validação de médico permanece honesta (&quot;sem integração ainda&quot;) em vez de
           fabricar uma confirmação — ver <span className="font-medium">Verificação do médico</span> em cada solicitação.
         </p>
       </div>
@@ -45,7 +77,7 @@ export default async function AdminDoctorRegistryPage() {
         </Card>
         <Card>
           <CardContent className="p-5">
-            <p className="text-xs text-muted-foreground">Com situação "Regular"</p>
+            <p className="text-xs text-muted-foreground">Com situação &quot;Regular&quot;</p>
             <p className="text-2xl font-semibold tabular-nums">{regularTotal}</p>
           </CardContent>
         </Card>
@@ -99,27 +131,42 @@ export default async function AdminDoctorRegistryPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Adicionados recentemente</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {recent.length === 0 && <p className="text-sm text-muted-foreground">Nenhum médico verificado ainda.</p>}
-          {recent.map((d) => (
-            <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
-              <div>
-                <p className="font-medium">{d.officialName}</p>
-                <p className="text-xs text-muted-foreground">
-                  CRM {d.crm}/{d.uf} · {d.specialty ?? "sem especialidade registrada"}
-                </p>
-              </div>
-              <Badge variant={d.registrationStatus === "Regular" ? "success" : "warning"}>
-                {d.registrationStatus ?? "—"}
-              </Badge>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-base font-semibold">Médicos no cache</h3>
+          <p className="text-sm text-muted-foreground">Busque por nome ou CRM, ou filtre por UF/situação — útil para conferir um registro específico.</p>
+        </div>
+
+        <FilterBar
+          searchPlaceholder="Buscar por nome ou CRM..."
+          selects={[
+            { paramName: "uf", placeholder: "UF", options: ALL_UFS.map((uf) => ({ value: uf, label: uf })) },
+            {
+              paramName: "status",
+              placeholder: "Situação",
+              options: statuses
+                .filter((s) => s.registrationStatus)
+                .map((s) => ({ value: s.registrationStatus!, label: s.registrationStatus! })),
+            },
+          ]}
+        />
+
+        <DataTable
+          columns={doctorColumns}
+          data={doctors.map((d) => ({
+            id: d.id,
+            officialName: d.officialName,
+            crm: d.crm,
+            uf: d.uf,
+            specialty: d.specialty,
+            registrationStatus: d.registrationStatus,
+            verifiedAt: d.verifiedAt,
+          }))}
+          emptyTitle="Nenhum médico encontrado"
+          emptyDescription="Ajuste a busca ou os filtros."
+        />
+        <Pagination page={page} totalPages={totalPages} />
+      </div>
 
       <Card>
         <CardHeader>
