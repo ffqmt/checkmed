@@ -103,7 +103,12 @@ export class DefaultWhatsAppService implements WhatsAppService {
       const result = await adapter.sendTextMessage(to, message);
       await prisma.whatsAppMessage.update({
         where: { id: record.id },
-        data: { status: result.status, providerMessageId: result.providerMessageId, sentAt: new Date() },
+        data: {
+          status: result.status,
+          providerMessageId: result.providerMessageId,
+          sentAt: result.status === "SENT" ? new Date() : null,
+          errorMessage: result.errorMessage,
+        },
       });
     } catch (error) {
       await prisma.whatsAppMessage.update({

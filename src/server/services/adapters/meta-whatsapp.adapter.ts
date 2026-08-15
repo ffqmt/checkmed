@@ -1,25 +1,27 @@
-import { simulateLatency, randomInt } from "../mock-utils";
+import { simulateLatency } from "../mock-utils";
 import type { WhatsAppAdapter, WhatsAppSendResult } from "./whatsapp-adapter.types";
 
+const NOTE = "Nenhum provedor real conectado — mensagem simulada, não foi enviada de fato.";
+
 /**
- * Mocked Meta Cloud API adapter. To go live: call
+ * No real HTTP call is made yet — to go live: call
  * `POST https://graph.facebook.com/v20.0/{phoneNumberId}/messages` with the
- * organization's access token (WHATSAPP_ACCESS_TOKEN) and phoneNumberId
- * (WHATSAPP_PHONE_NUMBER_ID), forwarding template name + component
- * variables per Meta's template message schema.
+ * organization's decrypted access token (see server/actions/whatsapp-integration.ts
+ * / lib/secret-encryption.ts) and phoneNumberId, forwarding template name +
+ * component variables per Meta's template message schema.
+ *
+ * Until that call exists, this honestly reports SIMULATED (not a fabricated
+ * "SENT") regardless of whether an access token has been configured for the
+ * organization — a real token unlocks nothing here yet, on its own.
  */
 export class MetaWhatsAppAdapter implements WhatsAppAdapter {
-  async sendTemplateMessage(
-    to: string,
-    templateName: string,
-    _variables: Record<string, string>,
-  ): Promise<WhatsAppSendResult> {
+  async sendTemplateMessage(): Promise<WhatsAppSendResult> {
     await simulateLatency(200, 700);
-    return { providerMessageId: `wamid.mock.${randomInt(100000, 999999)}`, status: "SENT" };
+    return { providerMessageId: null, status: "SIMULATED", errorMessage: NOTE };
   }
 
-  async sendTextMessage(_to: string, _message: string): Promise<WhatsAppSendResult> {
+  async sendTextMessage(): Promise<WhatsAppSendResult> {
     await simulateLatency(200, 700);
-    return { providerMessageId: `wamid.mock.${randomInt(100000, 999999)}`, status: "SENT" };
+    return { providerMessageId: null, status: "SIMULATED", errorMessage: NOTE };
   }
 }

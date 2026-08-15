@@ -219,6 +219,8 @@ enum WhatsAppMessageStatus {
   READ
   FAILED
   RECEIVED
+  /** No real provider is wired up yet (see whatsapp.service.ts) — the message was recorded but never actually sent. */
+  SIMULATED
 }
 
 enum NotificationChannel {

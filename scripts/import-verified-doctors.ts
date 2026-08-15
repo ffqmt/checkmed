@@ -158,6 +158,26 @@ async function runImport(path: string): Promise<void> {
 }
 
 /**
+ * The Supabase pooled connection has been observed to intermittently refuse
+ * the first connection of a burst (P1001, "Can't reach database server")
+ * even when the server is fine seconds later — retry a few times with
+ * backoff instead of letting one blip kill the whole long-running watcher.
+ */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 4, delayMs = 3000): Promise<T> {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === attempts) throw e;
+      const reason = (e as Error).message.split("\n").find((l) => l.trim()) ?? String(e);
+      console.error(`Tentativa ${i}/${attempts} falhou (${reason.trim()}), tentando de novo em ${delayMs / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error("unreachable");
+}
+
+/**
  * Watches the folder and re-imports automatically whenever a .txt is added
  * or changed — no need to remember to run the command by hand after every
  * file the browser-console collector drops in. Debounced by 4s of silence
@@ -166,7 +186,7 @@ async function runImport(path: string): Promise<void> {
  */
 async function watchAndImport(path: string): Promise<void> {
   console.log(`Observando ${path} — qualquer .txt novo ou modificado é importado sozinho. Ctrl+C para parar.\n`);
-  await runImport(path);
+  await withRetry(() => runImport(path));
 
   const pendingTimers = new Map<string, NodeJS.Timeout>();
   let importRunning = false;
@@ -180,7 +200,7 @@ async function watchAndImport(path: string): Promise<void> {
     importRunning = true;
     try {
       console.log(`\n[${new Date().toLocaleTimeString("pt-BR")}] Arquivo novo/alterado detectado — importando...`);
-      await runImport(path);
+      await withRetry(() => runImport(path));
     } catch (e) {
       console.error("Falha ao importar:", e);
     } finally {

@@ -14,7 +14,8 @@ export default async function AdminWhatsAppPage() {
       <div>
         <h2 className="text-lg font-semibold">Integração WhatsApp</h2>
         <p className="text-sm text-muted-foreground">
-          Configure o provedor de WhatsApp Business por organização. Enquanto não configurado, mensagens são simuladas.
+          Configure o provedor de WhatsApp Business por organização. Nenhum provedor real está conectado ainda — todo
+          envio é simulado (fica registrado, mas não sai de verdade), independente do que estiver configurado aqui.
         </p>
       </div>
 
@@ -34,6 +35,7 @@ export default async function AdminWhatsAppPage() {
                 organizationId={org.id}
                 defaultProvider={org.whatsAppIntegration?.provider ?? "META_CLOUD_API"}
                 defaultPhoneNumberId={org.whatsAppIntegration?.phoneNumberId ?? ""}
+                hasAccessToken={Boolean(org.whatsAppIntegration?.accessTokenEncrypted)}
               />
             </CardContent>
           </Card>

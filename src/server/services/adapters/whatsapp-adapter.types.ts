@@ -1,6 +1,6 @@
 export type WhatsAppSendResult = {
-  providerMessageId: string;
-  status: "SENT" | "FAILED";
+  providerMessageId: string | null;
+  status: "SENT" | "FAILED" | "SIMULATED";
   errorMessage?: string;
 };
 

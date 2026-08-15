@@ -19,6 +19,7 @@ const STATUS_VARIANT: Record<string, "neutral" | "info" | "success" | "warning" 
   READ: "success",
   FAILED: "danger",
   RECEIVED: "neutral",
+  SIMULATED: "warning",
 };
 
 export function WhatsAppPanel({ requestId, messages }: { requestId: string; messages: WhatsAppMessage[] }) {
@@ -56,6 +57,7 @@ export function WhatsAppPanel({ requestId, messages }: { requestId: string; mess
               <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge>
             </div>
             <p className="mt-1">{m.messageBody}</p>
+            {m.errorMessage && <p className="mt-1 text-xs text-status-warning">{m.errorMessage}</p>}
             <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</p>
           </div>
         ))}
