@@ -33,7 +33,7 @@ export default async function AdminDoctorRegistryPage({
 
   const page = Math.max(1, Number(params.page) || 1);
 
-  const [total, regularTotal, byUf, statuses, filteredTotal, doctors] = await Promise.all([
+  const [total, regularTotal, byUf, byUfRegular, statuses, filteredTotal, doctors] = await Promise.all([
     prisma.verifiedDoctor.count(),
     prisma.verifiedDoctor.count({ where: { registrationStatus: "Regular" } }),
     prisma.verifiedDoctor.groupBy({
@@ -41,6 +41,11 @@ export default async function AdminDoctorRegistryPage({
       _count: { _all: true },
       _max: { verifiedAt: true },
       orderBy: { uf: "asc" },
+    }),
+    prisma.verifiedDoctor.groupBy({
+      by: ["uf"],
+      where: { registrationStatus: "Regular" },
+      _count: { _all: true },
     }),
     prisma.verifiedDoctor.groupBy({ by: ["registrationStatus"], orderBy: { registrationStatus: "asc" } }),
     prisma.verifiedDoctor.count({ where }),
@@ -53,6 +58,7 @@ export default async function AdminDoctorRegistryPage({
   ]);
 
   const byUfMap = new Map(byUf.map((r) => [r.uf, r]));
+  const byUfRegularMap = new Map(byUfRegular.map((r) => [r.uf, r._count._all]));
   const covered = ALL_UFS.filter((uf) => byUfMap.has(uf));
   const missing = ALL_UFS.filter((uf) => !byUfMap.has(uf));
   const totalPages = Math.max(1, Math.ceil(filteredTotal / DEFAULT_PAGE_SIZE));
@@ -101,7 +107,8 @@ export default async function AdminDoctorRegistryPage({
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="pb-2 pr-4 font-medium">UF</th>
-                  <th className="pb-2 pr-4 font-medium">Médicos no cache</th>
+                  <th className="pb-2 pr-4 font-medium">Total no cache</th>
+                  <th className="pb-2 pr-4 font-medium">Regular</th>
                   <th className="pb-2 font-medium">Última verificação importada</th>
                 </tr>
               </thead>
@@ -110,6 +117,7 @@ export default async function AdminDoctorRegistryPage({
                   <tr key={r.uf} className="border-b border-border/50 last:border-0">
                     <td className="py-2 pr-4 font-medium">{r.uf}</td>
                     <td className="py-2 pr-4 tabular-nums">{r._count._all}</td>
+                    <td className="py-2 pr-4 tabular-nums text-muted-foreground">{byUfRegularMap.get(r.uf) ?? 0}</td>
                     <td className="py-2 text-muted-foreground">
                       {r._max.verifiedAt ? formatDateTime(r._max.verifiedAt) : "—"}
                     </td>
