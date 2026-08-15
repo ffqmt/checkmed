@@ -41,7 +41,7 @@ emissora", "confiabilidade baixa/média/alta" — nunca "atestado falso" ou
 - **Zod** para validação, **React Hook Form** nos formulários mais complexos
 - **TanStack Table** nas tabelas de solicitações, **Recharts** nos gráficos do painel operacional
 - **Lucide React** para ícones
-- Camada de **services** desacoplada para OCR, extração estruturada, validação de médico/clínica, QR Code, forense documental, similaridade, score de risco, WhatsApp e notificações — todas mockadas hoje, com interfaces prontas para plugar provedores reais
+- Camada de **services** desacoplada para OCR, extração estruturada, validação de médico/clínica, QR Code, forense documental, similaridade, score de risco, WhatsApp e notificações — extração (Claude Vision), validação de clínica/CNPJ (Receita Federal via BrasilAPI) e similaridade já usam lógica real por padrão; validação de médico/CRM é honesta mas limitada (cadastro verificado manualmente + formato, sem fonte pública do CFM); WhatsApp e notificações seguem mockados, com interfaces prontas para plugar provedores reais
 
 ## Setup local
 
@@ -224,14 +224,20 @@ troque o export `ocrService` em `ocr.service.ts`.
 `MedicalCertificateExtractionService.extractStructuredData` chamando a API
 da Anthropic/OpenAI com um schema JSON estrito sobre o texto do OCR.
 
-**Validação de CRM real** — implemente `DoctorRegistryService.verifyDoctor`
-apontando para a fonte pública/oficial disponível (ou um provedor de dados
-licenciado) no lugar do mock em `doctor-registry.service.ts`.
+**Validação de CRM** — já é honesta hoje (`doctor-registry.service.ts`),
+mas limitada: nenhuma API pública do CFM existe para consulta automática, só
+confirma um CRM contra o cadastro `VerifiedDoctor` (verificado manualmente
+por um analista no site do CFM) ou reporta o formato como plausível/implausível
+— nunca inventa uma confirmação. Para automatizar de verdade, contrate um
+provedor comercial (Netrin, Infosimples) e plugue em
+`DoctorRegistryService.verifyDoctor`.
 
-**Consulta de clínicas/CNPJ/CNES real** — implemente
-`ClinicRegistryService.verifyClinic` com chamadas a uma API de CNPJ
-(ex.: BrasilAPI/ReceitaWS) e ao CNES (DATASUS), combinando com o cadastro
-interno de clínicas já confirmadas em casos anteriores.
+**Consulta de clínicas/CNPJ** — já é real hoje (`clinic-registry.service.ts`
+→ `adapters/brasilapi-clinic-registry.adapter.ts`), consultando o CNPJ na
+Receita Federal via BrasilAPI (grátis, sem chave). CNES (cadastro de
+estabelecimentos de saúde do DATASUS) continua sem integração — nenhuma API
+pública de consulta única foi encontrada; é uma lacuna documentada, não uma
+confirmação assumida.
 
 **WhatsApp Business real** — preencha `WHATSAPP_PROVIDER`,
 `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` e implemente o corpo de

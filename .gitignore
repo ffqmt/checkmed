@@ -48,3 +48,6 @@ next-env.d.ts
 dados.txt
 dados*.txt
 /data/cfm-raw/
+
+.vercel
+.env*
