@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
-import { sendWhatsAppTextMessage } from "@/server/actions/whatsapp";
+import { sendWhatsAppTextMessage, getWhatsAppMessages } from "@/server/actions/whatsapp";
 import type { WhatsAppMessage } from "@prisma/client";
 
 const STATUS_VARIANT: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
@@ -22,11 +21,29 @@ const STATUS_VARIANT: Record<string, "neutral" | "info" | "success" | "warning" 
   SIMULATED: "warning",
 };
 
-export function WhatsAppPanel({ requestId, messages }: { requestId: string; messages: WhatsAppMessage[] }) {
+const POLL_INTERVAL_MS = 5000;
+
+export function WhatsAppPanel({ requestId, messages: initialMessages }: { requestId: string; messages: WhatsAppMessage[] }) {
+  const [messages, setMessages] = React.useState(initialMessages);
   const [to, setTo] = React.useState("");
   const [message, setMessage] = React.useState("");
   const [pending, setPending] = React.useState(false);
-  const router = useRouter();
+
+  const refresh = React.useCallback(async () => {
+    try {
+      setMessages(await getWhatsAppMessages(requestId));
+    } catch {
+      // Transient failures just wait for the next poll — no need to surface a toast for a background refresh.
+    }
+  }, [requestId]);
+
+  React.useEffect(() => {
+    // Delivery status and inbound replies arrive via webhook — a request
+    // the open tab never sees — so nothing else would tell this page a
+    // message's status changed or a reply came in.
+    const interval = setInterval(refresh, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [refresh]);
 
   async function handleSend() {
     setPending(true);
@@ -38,7 +55,7 @@ export function WhatsAppPanel({ requestId, messages }: { requestId: string; mess
     }
     toast.success("Mensagem enviada.");
     setMessage("");
-    router.refresh();
+    await refresh();
   }
 
   return (

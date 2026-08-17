@@ -37,3 +37,19 @@ export async function sendWhatsAppTextMessage(requestId: string, toNumber: strin
   revalidatePath(`/ops/requests/${requestId}`);
   return { success: true };
 }
+
+/**
+ * Delivery-status updates and inbound replies arrive via webhook — a
+ * request completely separate from whichever browser tab has the page
+ * open — so nothing pushes those changes to an already-rendered page.
+ * WhatsAppPanel polls this on an interval instead of the heavier
+ * router.refresh() (which would re-run the whole page, not just the
+ * message list).
+ */
+export async function getWhatsAppMessages(requestId: string) {
+  const session = await auth();
+  if (!session?.user || !permissions.reviewAsAnalyst(session.user.role)) {
+    throw new Error("Sem permissão para ver mensagens.");
+  }
+  return prisma.whatsAppMessage.findMany({ where: { requestId }, orderBy: { createdAt: "asc" } });
+}
