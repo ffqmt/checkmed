@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { NotificationChannel, NotificationPreference } from "@prisma/client";
 import { whatsAppService, WHATSAPP_TEMPLATES } from "./whatsapp.service";
+import { emailService } from "./email.service";
 
 type NotificationEvent =
   | "REQUEST_RECEIVED"
@@ -57,14 +58,16 @@ export interface NotificationService {
     userId?: string;
     event: NotificationEvent;
     toPhone?: string | null;
+    toEmail?: string | null;
   }): Promise<void>;
 }
 
 /**
- * Dispatches in-app notifications (always) plus WhatsApp (when configured
- * and the organization/user preference allows it). Email dispatch follows
- * the same shape — add an EmailAdapter and a NotificationChannel.EMAIL
- * branch here when a provider (Resend/SendGrid/SES) is wired in.
+ * Dispatches in-app notifications (always) plus WhatsApp and email (each
+ * independently, when a real adapter is configured and the organization/
+ * user preference allows that specific channel). Unlike WhatsApp, email
+ * has no per-event template-approval requirement, so every event is
+ * eligible — there's no EVENT_TO_EMAIL_TEMPLATE map to keep in sync.
  */
 export class DefaultNotificationService implements NotificationService {
   async notify(params: {
@@ -73,6 +76,7 @@ export class DefaultNotificationService implements NotificationService {
     userId?: string;
     event: NotificationEvent;
     toPhone?: string | null;
+    toEmail?: string | null;
   }): Promise<void> {
     const copy = EVENT_COPY[params.event];
 
@@ -109,6 +113,18 @@ export class DefaultNotificationService implements NotificationService {
         { requestId: params.requestId.slice(-8) },
         params.requestId,
       );
+    }
+
+    const emailAllowed = !preference || preference.notifyViaEmail !== false;
+    if (params.toEmail && emailAllowed) {
+      await emailService.sendNotificationEmail({
+        organizationId: params.organizationId,
+        userId: params.userId,
+        requestId: params.requestId,
+        to: params.toEmail,
+        subject: copy.title,
+        bodyText: copy.message(params.requestId),
+      });
     }
   }
 }

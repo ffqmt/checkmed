@@ -25,6 +25,7 @@ export const updateNotificationPreferenceSchema = z.object({
   notifyOnCompleted: z.boolean(),
   notifyOnInconsistency: z.boolean(),
   notifyViaWhatsApp: z.boolean(),
+  notifyViaEmail: z.boolean(),
 });
 
 export const updateMyPhoneSchema = z.object({

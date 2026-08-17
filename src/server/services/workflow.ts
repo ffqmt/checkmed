@@ -40,6 +40,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     userId: request.submittedByUserId,
     event: "PROCESSING_STARTED",
     toPhone: request.submittedBy.phone,
+    toEmail: request.submittedBy.email,
   });
   await dispatchWebhookEvent(request.organizationId, "request.processing_started", { requestId }, requestId);
 
@@ -458,6 +459,7 @@ async function applyDecision(
       userId: request.submittedByUserId,
       event: "INCONSISTENCY",
       toPhone: request.submittedBy.phone,
+      toEmail: request.submittedBy.email,
     });
     await dispatchWebhookEvent(request.organizationId, "request.completed", { requestId, finalResult: "INCONCLUSIVE" }, requestId);
     return;
@@ -488,6 +490,7 @@ async function applyDecision(
       userId: request.submittedByUserId,
       event: "INCONSISTENCY",
       toPhone: request.submittedBy.phone,
+      toEmail: request.submittedBy.email,
     });
     await dispatchWebhookEvent(request.organizationId, "request.waiting_human_review", { requestId, reason: "supervisor_review" }, requestId);
     return;
@@ -518,6 +521,7 @@ async function applyDecision(
       userId: request.submittedByUserId,
       event: "WAITING_EXTERNAL_RESPONSE",
       toPhone: request.submittedBy.phone,
+      toEmail: request.submittedBy.email,
     });
     await dispatchWebhookEvent(request.organizationId, "request.waiting_external_response", { requestId }, requestId);
     return;

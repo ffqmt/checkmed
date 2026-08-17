@@ -291,6 +291,7 @@ async function finalizeRequest(requestId: string, result: FinalResult) {
     userId: request.submittedByUserId,
     event: CONSEQUENTIAL_RESULTS.includes(result) ? "INCONSISTENCY" : "COMPLETED",
     toPhone: request.submittedBy.phone,
+    toEmail: request.submittedBy.email,
   });
   await dispatchWebhookEvent(
     request.organizationId,

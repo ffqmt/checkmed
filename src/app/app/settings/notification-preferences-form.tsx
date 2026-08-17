@@ -22,9 +22,18 @@ type Values = {
   notifyOnCompleted: boolean;
   notifyOnInconsistency: boolean;
   notifyViaWhatsApp: boolean;
+  notifyViaEmail: boolean;
 };
 
-export function NotificationPreferencesForm({ defaultValues, hasPhone }: { defaultValues: Values; hasPhone: boolean }) {
+export function NotificationPreferencesForm({
+  defaultValues,
+  hasPhone,
+  userEmail,
+}: {
+  defaultValues: Values;
+  hasPhone: boolean;
+  userEmail: string;
+}) {
   const [values, setValues] = React.useState(defaultValues);
   const [pending, setPending] = React.useState(false);
 
@@ -50,6 +59,16 @@ export function NotificationPreferencesForm({ defaultValues, hasPhone }: { defau
           checked={values.notifyViaWhatsApp}
           disabled={!hasPhone}
           onCheckedChange={(checked) => setValues((v) => ({ ...v, notifyViaWhatsApp: checked }))}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-3">
+        <div>
+          <Label>Receber notificações por e-mail</Label>
+          <p className="text-xs text-muted-foreground">Os eventos marcados abaixo também chegam em {userEmail}.</p>
+        </div>
+        <Switch
+          checked={values.notifyViaEmail}
+          onCheckedChange={(checked) => setValues((v) => ({ ...v, notifyViaEmail: checked }))}
         />
       </div>
       {OPTIONS.map((opt) => (

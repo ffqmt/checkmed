@@ -235,6 +235,10 @@ enum NotificationStatus {
   SENT
   FAILED
   READ
+  // Same honesty rule as WhatsAppMessageStatus.SIMULATED — no real
+  // provider configured, so nothing was actually sent. Never fabricated
+  // as SENT just because the local record was created.
+  SIMULATED
 }
 
 enum ApiKeyStatus {
@@ -862,6 +866,7 @@ model NotificationPreference {
   // events notify at all (in-app included), this decides whether WhatsApp
   // specifically is one of the channels used for the events that are on.
   notifyViaWhatsApp               Boolean      @default(true)
+  notifyViaEmail                  Boolean      @default(true)
 
   @@unique([organizationId, userId])
   @@map("notification_preferences")

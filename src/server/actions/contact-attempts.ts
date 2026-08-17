@@ -160,6 +160,7 @@ async function applyContactOutcome(requestId: string, result: string) {
       requestId,
       event: "INCONSISTENCY",
       toPhone: request.submittedBy.phone,
+      toEmail: request.submittedBy.email,
     });
     return;
   }

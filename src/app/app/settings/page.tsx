@@ -49,6 +49,7 @@ export default async function ClientSettingsPage() {
           <WhatsAppNumberForm defaultPhone={me?.phone ?? null} />
           <NotificationPreferencesForm
             hasPhone={Boolean(me?.phone)}
+            userEmail={session!.user.email!}
             defaultValues={{
               notifyOnRequestReceived: preference?.notifyOnRequestReceived ?? true,
               notifyOnProcessingStarted: preference?.notifyOnProcessingStarted ?? true,
@@ -56,6 +57,7 @@ export default async function ClientSettingsPage() {
               notifyOnCompleted: preference?.notifyOnCompleted ?? true,
               notifyOnInconsistency: preference?.notifyOnInconsistency ?? true,
               notifyViaWhatsApp: preference?.notifyViaWhatsApp ?? true,
+              notifyViaEmail: preference?.notifyViaEmail ?? true,
             }}
           />
         </CardContent>

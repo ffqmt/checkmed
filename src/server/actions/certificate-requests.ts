@@ -189,6 +189,7 @@ export async function finalizeCertificateRequestUpload(input: {
     userId: session.user.id,
     event: "REQUEST_RECEIVED",
     toPhone: request.submittedBy.phone,
+    toEmail: request.submittedBy.email,
   });
   await dispatchWebhookEvent(
     request.organizationId,
