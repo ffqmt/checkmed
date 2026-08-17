@@ -7,14 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, outboundSenderLabel } from "@/lib/utils";
 import { WHATSAPP_STATUS_TONE } from "@/lib/constants";
 import { sendWhatsAppTextMessage, getWhatsAppMessages } from "@/server/actions/whatsapp";
-import type { WhatsAppMessage } from "@prisma/client";
+
+type Messages = Awaited<ReturnType<typeof getWhatsAppMessages>>;
 
 const POLL_INTERVAL_MS = 5000;
 
-export function WhatsAppPanel({ requestId, messages: initialMessages }: { requestId: string; messages: WhatsAppMessage[] }) {
+export function WhatsAppPanel({ requestId, messages: initialMessages }: { requestId: string; messages: Messages }) {
   const [messages, setMessages] = React.useState(initialMessages);
   const [to, setTo] = React.useState("");
   const [message, setMessage] = React.useState("");
@@ -60,7 +61,7 @@ export function WhatsAppPanel({ requestId, messages: initialMessages }: { reques
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground">
-                {m.direction === "OUTBOUND" ? `Para ${m.toNumber}` : `De ${m.fromNumber}`}
+                {m.direction === "OUTBOUND" ? outboundSenderLabel(m) : `De ${m.fromNumber}`}
               </span>
               <Badge variant={WHATSAPP_STATUS_TONE[m.status]}>{m.status}</Badge>
             </div>

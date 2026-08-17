@@ -7,7 +7,7 @@ import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, outboundSenderLabel } from "@/lib/utils";
 import { WHATSAPP_STATUS_TONE } from "@/lib/constants";
 import { getContactThread, sendMessageToContact } from "@/server/actions/messages-inbox";
 
@@ -71,7 +71,9 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
             className={`max-w-md rounded-lg border border-border p-3 text-sm ${m.direction === "OUTBOUND" ? "ml-auto bg-primary/5" : "bg-muted/40"}`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-muted-foreground">{m.organization.name}</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                {m.direction === "OUTBOUND" ? outboundSenderLabel(m) : thread.contactLabel}
+              </span>
               <Badge variant={WHATSAPP_STATUS_TONE[m.status]}>{m.status}</Badge>
             </div>
             <p className="mt-1">{m.messageBody}</p>

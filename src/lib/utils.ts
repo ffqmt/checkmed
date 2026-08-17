@@ -50,3 +50,17 @@ export function initials(name: string) {
     .map((p) => p[0]?.toUpperCase())
     .join("");
 }
+
+/**
+ * Who actually sent an OUTBOUND WhatsApp message — never the client
+ * organization's name, which isn't who's typing. templateName is only ever
+ * set by the system-triggered notify() path (see whatsapp.service.ts), so
+ * it's a reliable signal for "automatic" independent of sentByUserId. A
+ * message with neither is a manual send from before sentByUserId existed —
+ * distinct from "automatic", not guessed as either.
+ */
+export function outboundSenderLabel(message: { templateName: string | null; sentByUser: { name: string } | null }) {
+  if (message.templateName) return "Envio automático";
+  if (message.sentByUser) return message.sentByUser.name;
+  return "Remetente não registrado";
+}

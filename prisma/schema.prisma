@@ -373,6 +373,7 @@ model User {
   assignedDisputes    Dispute[]                   @relation("DisputeAssignedTo")
   dataPrivacyRequests DataPrivacyRequest[]
   verifiedDoctors     VerifiedDoctor[]            @relation("VerifiedDoctorBy")
+  sentWhatsAppMessages WhatsAppMessage[]           @relation("WhatsAppMessageSentBy")
 
   @@index([organizationId])
   @@map("users")
@@ -797,6 +798,19 @@ model WhatsAppMessage {
   deliveredAt       DateTime?
   readAt            DateTime?
   createdAt         DateTime                   @default(now())
+
+  // Who actually typed this — null for system-triggered sends (templateName
+  // set, via notify()) and for pre-existing rows from before this field
+  // existed. Never inferred/guessed; the UI distinguishes the two null
+  // cases by whether templateName is set.
+  sentByUserId String?
+  sentByUser   User?   @relation("WhatsAppMessageSentBy", fields: [sentByUserId], references: [id])
+
+  attachmentStorageBucket String?
+  attachmentStoragePath   String?
+  attachmentMimeType      String?
+  attachmentFileName      String?
+  attachmentFileSize      Int?
 
   @@index([organizationId])
   @@index([requestId])

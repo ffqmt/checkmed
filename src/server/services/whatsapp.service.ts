@@ -34,8 +34,9 @@ export interface WhatsAppService {
     templateName: string,
     variables: Record<string, string>,
     requestId?: string,
+    sentByUserId?: string,
   ): Promise<void>;
-  sendTextMessage(organizationId: string, to: string, message: string, requestId?: string): Promise<void>;
+  sendTextMessage(organizationId: string, to: string, message: string, requestId?: string, sentByUserId?: string): Promise<void>;
   /** Meta's real webhook shape: {object, entry:[{changes:[{value:{metadata,statuses?,messages?}}]}]} — see below. */
   processWebhookPayload(payload: unknown): Promise<void>;
 }
@@ -47,6 +48,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
     templateName: string,
     variables: Record<string, string>,
     requestId?: string,
+    sentByUserId?: string,
   ): Promise<void> {
     const integration = await prisma.whatsAppIntegration.findUnique({ where: { organizationId } });
     const provider = integration?.provider ?? "OTHER";
@@ -60,6 +62,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
       data: {
         organizationId,
         requestId,
+        sentByUserId,
         direction: "OUTBOUND",
         fromNumber: integration?.phoneNumberId ?? "medcheck-sandbox",
         // Normalized so a later inbound reply (Meta reports the sender in
@@ -90,7 +93,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
     }
   }
 
-  async sendTextMessage(organizationId: string, to: string, message: string, requestId?: string): Promise<void> {
+  async sendTextMessage(organizationId: string, to: string, message: string, requestId?: string, sentByUserId?: string): Promise<void> {
     const integration = await prisma.whatsAppIntegration.findUnique({ where: { organizationId } });
     const provider = integration?.provider ?? "OTHER";
     const adapter = adapterFor(provider, integration);
@@ -99,6 +102,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
       data: {
         organizationId,
         requestId,
+        sentByUserId,
         direction: "OUTBOUND",
         fromNumber: integration?.phoneNumberId ?? "medcheck-sandbox",
         toNumber: normalizePhoneNumber(to),

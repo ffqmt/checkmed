@@ -44,7 +44,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
       similarityMatches: { include: { matchedRequest: true } },
       riskAnalysis: { include: { alerts: true } },
       contactAttempts: { include: { responsibleUser: true, evidenceFile: true }, orderBy: { attemptedAt: "desc" } },
-      whatsAppMessages: { orderBy: { createdAt: "asc" } },
+      whatsAppMessages: { orderBy: { createdAt: "asc" }, include: { sentByUser: { select: { id: true, name: true } } } },
       timelineEvents: { orderBy: { createdAt: "asc" }, include: { user: true } },
       auditLogs: { orderBy: { createdAt: "desc" }, take: 50, include: { user: true } },
       finalReport: true,

@@ -17,7 +17,7 @@ export async function sendWhatsAppTextMessage(requestId: string, toNumber: strin
 
   const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({ where: { id: requestId } });
 
-  await whatsAppService.sendTextMessage(request.organizationId, toNumber, message, requestId);
+  await whatsAppService.sendTextMessage(request.organizationId, toNumber, message, requestId, session.user.id);
   await recordTimelineEvent({
     requestId,
     userId: session.user.id,
@@ -51,5 +51,9 @@ export async function getWhatsAppMessages(requestId: string) {
   if (!session?.user || !permissions.reviewAsAnalyst(session.user.role)) {
     throw new Error("Sem permissão para ver mensagens.");
   }
-  return prisma.whatsAppMessage.findMany({ where: { requestId }, orderBy: { createdAt: "asc" } });
+  return prisma.whatsAppMessage.findMany({
+    where: { requestId },
+    orderBy: { createdAt: "asc" },
+    include: { sentByUser: { select: { id: true, name: true } } },
+  });
 }

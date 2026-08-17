@@ -20,6 +20,11 @@ function formatPhoneForDisplay(canonicalKey: string): string {
   return `+${canonicalKey}`;
 }
 
+/** Best-effort identity for the external contact — never the org name alone when a clinic name is known, since the org isn't who's actually on the other end of the conversation. Shared between the contact list and the thread header/bubbles so they never disagree. */
+function resolveContactLabel(params: { clinicName: string | null; orgName: string | null; canonicalKey: string }): string {
+  return params.clinicName ?? params.orgName ?? formatPhoneForDisplay(params.canonicalKey);
+}
+
 export type MessageContact = {
   canonicalKey: string;
   label: string;
@@ -91,7 +96,7 @@ export async function getMessageContacts(): Promise<MessageContact[]> {
       const preview = previewByKey.get(canonicalKey);
       return {
         canonicalKey,
-        label: preview?.clinic ?? preview?.org ?? formatPhoneForDisplay(canonicalKey),
+        label: resolveContactLabel({ clinicName: preview?.clinic ?? null, orgName: preview?.org ?? null, canonicalKey }),
         context: preview?.employeeName ? `Sobre: ${preview.employeeName}` : null,
         previewText: preview?.text ?? null,
         previewAt,
@@ -114,14 +119,15 @@ export async function getContactThread(canonicalKey: string) {
     },
     orderBy: { createdAt: "asc" },
     include: {
-      request: { select: { id: true, employeeName: true } },
+      request: { select: { id: true, employeeName: true, clinicVerification: { select: { informedClinicName: true, officialName: true } } } },
       organization: { select: { id: true, name: true } },
+      sentByUser: { select: { id: true, name: true } },
     },
   });
 
   const relatedRequestsMap = new Map<string, { id: string; employeeName: string }>();
   for (const m of messages) {
-    if (m.request) relatedRequestsMap.set(m.request.id, m.request);
+    if (m.request) relatedRequestsMap.set(m.request.id, { id: m.request.id, employeeName: m.request.employeeName });
   }
 
   const last = messages.at(-1);
@@ -130,11 +136,19 @@ export async function getContactThread(canonicalKey: string) {
   // OUTBOUND message — Meta already accepted a send to that exact string
   // before — over an INBOUND fromNumber, which Meta has only ever reported
   // as a *sender*, never confirmed as a valid recipient.
-  const lastOutbound = [...messages].reverse().find((m) => m.direction === "OUTBOUND");
+  const messagesNewestFirst = [...messages].reverse();
+  const lastOutbound = messagesNewestFirst.find((m) => m.direction === "OUTBOUND");
   const lastKnownNumber = lastOutbound?.toNumber ?? last?.fromNumber ?? null;
+
+  const clinicName =
+    messagesNewestFirst
+      .map((m) => m.request?.clinicVerification?.officialName ?? m.request?.clinicVerification?.informedClinicName ?? null)
+      .find((c) => c !== null) ?? null;
+  const contactLabel = resolveContactLabel({ clinicName, orgName: last?.organization.name ?? null, canonicalKey });
 
   return {
     messages,
+    contactLabel,
     relatedRequests: [...relatedRequestsMap.values()],
     // Whoever we most recently talked to this contact as — no picker, just visible before hitting send.
     defaultOrganization: last ? last.organization : null,
@@ -147,7 +161,7 @@ export async function sendMessageToContact(organizationId: string, toNumber: str
   const session = await requireInternalAccess();
   if (!toNumber || !message.trim()) return { error: "Informe o número e a mensagem." };
 
-  await whatsAppService.sendTextMessage(organizationId, toNumber, message);
+  await whatsAppService.sendTextMessage(organizationId, toNumber, message, undefined, session.user.id);
 
   await recordAuditLog({
     organizationId,
