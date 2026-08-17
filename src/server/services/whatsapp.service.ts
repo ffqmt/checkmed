@@ -341,18 +341,14 @@ type MetaWebhookPayload = {
 };
 
 export const WHATSAPP_TEMPLATES: Record<string, string> = {
-  // Rewritten after Meta rejected the original wording as "Incorrect
-  // Category" for Utility — an opening greeting plus a soft "you can check
-  // it" call-to-action reads as an engagement/welcome message rather than
-  // an update on an already-open service request, which Utility requires.
-  request_received:
+  // Named request_received1 in Meta, not request_received — that name got
+  // rejected ("Incorrect Category") and re-registering under the same name
+  // wasn't available, so the approved template is under a new name.
+  // Rewritten wording for the same reason: an opening greeting plus a soft
+  // "you can check it" call-to-action reads as an engagement/welcome
+  // message rather than an update on an already-open service request.
+  request_received1:
     "A solicitação #{{requestId}} foi recebida pela MedCheck e entrou em processamento. Notificaremos você a cada etapa importante.",
-  processing_started:
-    "Sua solicitação #{{requestId}} entrou em análise automática. Notificaremos você a cada etapa importante.",
-  missing_information:
-    "Sua solicitação #{{requestId}} precisa de informações adicionais. Acesse o painel MedCheck para mais detalhes.",
-  clinic_contacted:
-    "Estamos em contato com a instituição emissora para confirmar dados da solicitação #{{requestId}}.",
   completed:
     "A análise da solicitação #{{requestId}} foi concluída. Confira o parecer no painel MedCheck.",
 };

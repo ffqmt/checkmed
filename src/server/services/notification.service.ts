@@ -40,10 +40,13 @@ const EVENT_TO_PREFERENCE_FIELD: Record<NotificationEvent, string> = {
   INCONSISTENCY: "notifyOnInconsistency",
 };
 
+// Only two approved WhatsApp templates exist today (request_received1,
+// completed) — PROCESSING_STARTED and WAITING_EXTERNAL_RESPONSE deliberately
+// have no entry, by choice (fewer WhatsApp touchpoints wanted), not because
+// their templates are still pending. notify() already treats a missing
+// mapping as "in-app only" for that event, so this alone is the whole fix.
 const EVENT_TO_WHATSAPP_TEMPLATE: Partial<Record<NotificationEvent, keyof typeof WHATSAPP_TEMPLATES>> = {
-  REQUEST_RECEIVED: "request_received",
-  PROCESSING_STARTED: "processing_started",
-  WAITING_EXTERNAL_RESPONSE: "clinic_contacted",
+  REQUEST_RECEIVED: "request_received1",
   COMPLETED: "completed",
 };
 
