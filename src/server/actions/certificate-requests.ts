@@ -137,7 +137,10 @@ export async function finalizeCertificateRequestUpload(input: {
     throw new Error("Sessão inválida.");
   }
 
-  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({ where: { id: input.requestId } });
+  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({
+    where: { id: input.requestId },
+    include: { submittedBy: true },
+  });
   if (request.organizationId !== session.user.organizationId) {
     throw new Error("Solicitação não encontrada.");
   }
@@ -185,6 +188,7 @@ export async function finalizeCertificateRequestUpload(input: {
     requestId: request.id,
     userId: session.user.id,
     event: "REQUEST_RECEIVED",
+    toPhone: request.submittedBy.phone,
   });
   await dispatchWebhookEvent(
     request.organizationId,

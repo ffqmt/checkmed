@@ -125,7 +125,10 @@ export async function createContactAttempt(input: unknown) {
 }
 
 async function applyContactOutcome(requestId: string, result: string) {
-  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({ where: { id: requestId } });
+  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({
+    where: { id: requestId },
+    include: { submittedBy: true },
+  });
 
   if (result === "CONFIRMED_ISSUANCE") {
     await prisma.medicalCertificateRequest.update({
@@ -152,7 +155,12 @@ async function applyContactOutcome(requestId: string, result: string) {
       title: "Instituição não reconheceu a emissão — encaminhado para supervisor",
       isClientVisible: true,
     });
-    await notificationService.notify({ organizationId: request.organizationId, requestId, event: "INCONSISTENCY" });
+    await notificationService.notify({
+      organizationId: request.organizationId,
+      requestId,
+      event: "INCONSISTENCY",
+      toPhone: request.submittedBy.phone,
+    });
     return;
   }
 

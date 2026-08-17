@@ -275,6 +275,7 @@ async function finalizeRequest(requestId: string, result: FinalResult) {
       completedAt: new Date(),
       clientVisibleSummary: clientSummaryFor(result),
     },
+    include: { submittedBy: true },
   });
 
   await recordTimelineEvent({
@@ -289,6 +290,7 @@ async function finalizeRequest(requestId: string, result: FinalResult) {
     requestId,
     userId: request.submittedByUserId,
     event: CONSEQUENTIAL_RESULTS.includes(result) ? "INCONSISTENCY" : "COMPLETED",
+    toPhone: request.submittedBy.phone,
   });
   await dispatchWebhookEvent(
     request.organizationId,

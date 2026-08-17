@@ -1,4 +1,5 @@
 import { decryptSecret } from "@/lib/secret-encryption";
+import { normalizePhoneNumber } from "@/lib/phone";
 import type { WhatsAppAdapter, WhatsAppSendResult } from "./whatsapp-adapter.types";
 
 const GRAPH_API_VERSION = "v25.0";
@@ -8,10 +9,6 @@ type MetaConfig = { phoneNumberId: string | null; accessTokenEncrypted: string |
 
 type MetaApiSuccess = { messages: { id: string }[] };
 type MetaApiError = { error: { message: string; type: string; code: number; error_subcode?: number } };
-
-function normalizePhoneNumber(to: string): string {
-  return to.replace(/\D/g, "");
-}
 
 /**
  * Real Meta Cloud API calls — `POST /{phoneNumberId}/messages`. A successful

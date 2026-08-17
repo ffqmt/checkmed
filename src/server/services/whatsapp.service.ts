@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { WhatsAppProvider, WhatsAppMessageStatus } from "@prisma/client";
+import { normalizePhoneNumber } from "@/lib/phone";
 import { MetaWhatsAppAdapter } from "./adapters/meta-whatsapp.adapter";
 import { TwilioWhatsAppAdapter } from "./adapters/twilio-whatsapp.adapter";
 import { GenericWhatsAppAdapter } from "./adapters/generic-whatsapp.adapter";
@@ -61,7 +62,9 @@ export class DefaultWhatsAppService implements WhatsAppService {
         requestId,
         direction: "OUTBOUND",
         fromNumber: integration?.phoneNumberId ?? "medcheck-sandbox",
-        toNumber: to,
+        // Normalized so a later inbound reply (Meta reports the sender in
+        // the same digits-only format) can be matched back to this number.
+        toNumber: normalizePhoneNumber(to),
         templateName,
         messageBody: body,
         status: "QUEUED",
@@ -98,7 +101,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
         requestId,
         direction: "OUTBOUND",
         fromNumber: integration?.phoneNumberId ?? "medcheck-sandbox",
-        toNumber: to,
+        toNumber: normalizePhoneNumber(to),
         messageBody: sanitizeMessageBody(message),
         status: "QUEUED",
       },
@@ -175,13 +178,27 @@ export class DefaultWhatsAppService implements WhatsAppService {
     });
   }
 
+  /**
+   * WhatsApp has no concept of "this reply is about case #1234" — Meta only
+   * tells us which phone number replied. Attribute the reply to whichever
+   * request we most recently texted that same number about; if we never
+   * texted them, there's nothing to attribute it to and it's just recorded
+   * at the organization level.
+   */
   private async recordInboundMessage(organizationId: string, phoneNumberId: string, message: MetaWebhookMessage): Promise<void> {
     if (!message.from) return;
+    const from = normalizePhoneNumber(message.from);
+    const lastOutbound = await prisma.whatsAppMessage.findFirst({
+      where: { organizationId, direction: "OUTBOUND", toNumber: from },
+      orderBy: { createdAt: "desc" },
+    });
+
     await prisma.whatsAppMessage.create({
       data: {
         organizationId,
+        requestId: lastOutbound?.requestId,
         direction: "INBOUND",
-        fromNumber: message.from,
+        fromNumber: from,
         toNumber: phoneNumberId,
         messageBody: message.text?.body ?? `[mensagem do tipo "${message.type ?? "desconhecido"}" — sem suporte a texto ainda]`,
         status: "RECEIVED",

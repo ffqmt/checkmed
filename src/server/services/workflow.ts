@@ -39,7 +39,7 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
     requestId,
     userId: request.submittedByUserId,
     event: "PROCESSING_STARTED",
-    toPhone: request.employeeEmail ? null : undefined,
+    toPhone: request.submittedBy.phone,
   });
   await dispatchWebhookEvent(request.organizationId, "request.processing_started", { requestId }, requestId);
 
@@ -431,7 +431,7 @@ async function applyDecision(
   riskLevel: "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   summary: string,
 ) {
-  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({ where: { id: requestId } });
+  const request = await prisma.medicalCertificateRequest.findUniqueOrThrow({ where: { id: requestId }, include: { submittedBy: true } });
 
   if (recommendation === "INCONCLUSIVE") {
     await prisma.medicalCertificateRequest.update({
@@ -457,6 +457,7 @@ async function applyDecision(
       requestId,
       userId: request.submittedByUserId,
       event: "INCONSISTENCY",
+      toPhone: request.submittedBy.phone,
     });
     await dispatchWebhookEvent(request.organizationId, "request.completed", { requestId, finalResult: "INCONCLUSIVE" }, requestId);
     return;
@@ -486,6 +487,7 @@ async function applyDecision(
       requestId,
       userId: request.submittedByUserId,
       event: "INCONSISTENCY",
+      toPhone: request.submittedBy.phone,
     });
     await dispatchWebhookEvent(request.organizationId, "request.waiting_human_review", { requestId, reason: "supervisor_review" }, requestId);
     return;
@@ -515,6 +517,7 @@ async function applyDecision(
       requestId,
       userId: request.submittedByUserId,
       event: "WAITING_EXTERNAL_RESPONSE",
+      toPhone: request.submittedBy.phone,
     });
     await dispatchWebhookEvent(request.organizationId, "request.waiting_external_response", { requestId }, requestId);
     return;
