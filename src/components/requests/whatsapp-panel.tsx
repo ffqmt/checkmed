@@ -8,18 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
+import { WHATSAPP_STATUS_TONE } from "@/lib/constants";
 import { sendWhatsAppTextMessage, getWhatsAppMessages } from "@/server/actions/whatsapp";
 import type { WhatsAppMessage } from "@prisma/client";
-
-const STATUS_VARIANT: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
-  QUEUED: "neutral",
-  SENT: "info",
-  DELIVERED: "info",
-  READ: "success",
-  FAILED: "danger",
-  RECEIVED: "neutral",
-  SIMULATED: "warning",
-};
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -71,7 +62,7 @@ export function WhatsAppPanel({ requestId, messages: initialMessages }: { reques
               <span className="text-xs font-medium text-muted-foreground">
                 {m.direction === "OUTBOUND" ? `Para ${m.toNumber}` : `De ${m.fromNumber}`}
               </span>
-              <Badge variant={STATUS_VARIANT[m.status]}>{m.status}</Badge>
+              <Badge variant={WHATSAPP_STATUS_TONE[m.status]}>{m.status}</Badge>
             </div>
             <p className="mt-1">{m.messageBody}</p>
             {m.errorMessage && <p className="mt-1 text-xs text-status-warning">{m.errorMessage}</p>}

@@ -22,3 +22,16 @@ export function phoneNumberVariants(value: string): string[] {
   }
   return [...variants];
 }
+
+/**
+ * Picks one stable representation among a number's plausible variants (the
+ * shortest — the form without the optional BR "9") so both raw forms of the
+ * same real contact collapse to a single inbox entry. Always run raw
+ * fromNumber/toNumber values through this rather than assuming clean,
+ * pre-normalized storage — not every write path normalizes before saving
+ * (e.g. seed data).
+ */
+export function canonicalPhoneKey(value: string): string {
+  const variants = phoneNumberVariants(value);
+  return variants.reduce((shortest, v) => (v.length < shortest.length ? v : shortest), variants[0]);
+}

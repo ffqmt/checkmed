@@ -12,6 +12,7 @@ import type {
   DataPrivacyRequestStatus,
   ContactType,
   ContactResult,
+  WhatsAppMessageStatus,
 } from "@prisma/client";
 
 /**
@@ -194,6 +195,19 @@ export const DISPUTE_STATUS_ORDER: DisputeStatus[] = [
 
 /** Non-terminal dispute statuses — the default view for ops/client dispute queues before any filter is applied. */
 export const OPEN_DISPUTE_STATUSES: DisputeStatus[] = ["OPEN", "IN_REVIEW", "WAITING_ADDITIONAL_INFORMATION"];
+
+export const WHATSAPP_STATUS_TONE: Record<
+  WhatsAppMessageStatus,
+  "neutral" | "info" | "success" | "warning" | "danger"
+> = {
+  QUEUED: "neutral",
+  SENT: "info",
+  DELIVERED: "info",
+  READ: "success",
+  FAILED: "danger",
+  RECEIVED: "neutral",
+  SIMULATED: "warning",
+};
 
 export const ALERT_SEVERITY_LABELS: Record<AlertSeverity, string> = {
   INFO: "Informativo",

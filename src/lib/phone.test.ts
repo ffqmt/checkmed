@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePhoneNumber, phoneNumberVariants } from "./phone";
+import { normalizePhoneNumber, phoneNumberVariants, canonicalPhoneKey } from "./phone";
 
 describe("normalizePhoneNumber", () => {
   it("strips everything but digits", () => {
@@ -28,5 +28,25 @@ describe("phoneNumberVariants", () => {
 
   it("leaves non-BR numbers untouched", () => {
     expect(phoneNumberVariants("+1 555-203-2674")).toEqual(["15552032674"]);
+  });
+});
+
+describe("canonicalPhoneKey", () => {
+  it("collapses both BR variant forms to the same key", () => {
+    expect(canonicalPhoneKey("+5566996409434")).toBe(canonicalPhoneKey("556696409434"));
+  });
+
+  it("picks the shorter (no-extra-9) form as canonical", () => {
+    expect(canonicalPhoneKey("+5566996409434")).toBe("556696409434");
+  });
+
+  it("handles unnormalized, punctuated input the same as clean digits (seed-data shape)", () => {
+    // Seed data stores numbers as "+55 11 90000-0000" directly, bypassing normalizePhoneNumber —
+    // this must still collapse to the same key as the clean 12-digit form.
+    expect(canonicalPhoneKey("+55 11 90000-0000")).toBe(canonicalPhoneKey("551100000000"));
+  });
+
+  it("is stable for non-BR numbers", () => {
+    expect(canonicalPhoneKey("+1 555-203-2674")).toBe("15552032674");
   });
 });

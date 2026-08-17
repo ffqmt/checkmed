@@ -37,6 +37,7 @@ export const internalNav: NavItem[] = [
   { href: "/ops", label: "Painel operacional", icon: LayoutDashboard },
   { href: "/ops/queue", label: "Fila de análise", icon: Inbox },
   { href: "/ops/disputes", label: "Contestações", icon: ShieldAlert },
+  { href: "/ops/messages", label: "Central de Mensagens", icon: MessageSquare },
 ];
 
 export const adminNav: NavItem[] = [
