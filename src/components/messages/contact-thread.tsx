@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Send, Paperclip, X } from "lucide-react";
+import { Send, Paperclip, X, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -24,15 +24,46 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
   const [message, setMessage] = React.useState("");
   const [attachmentFile, setAttachmentFile] = React.useState<File | null>(null);
   const [pending, setPending] = React.useState(false);
+  const [hasNewMessages, setHasNewMessages] = React.useState(false);
   const attachmentInputRef = React.useRef<HTMLInputElement>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const prevMessageCountRef = React.useRef(initialThread.messages.length);
 
+  const isNearBottom = React.useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+
+  const scrollToBottom = React.useCallback((behavior: ScrollBehavior) => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  // The grew/near-bottom check runs inside the callback that fetches new
+  // data (a poll tick or a post-send refresh), not in a useEffect reacting
+  // to `thread` — calling setState directly from an effect body that just
+  // watched `thread.messages.length` change is the exact anti-pattern
+  // react-hooks/set-state-in-effect flags; doing the check here instead is
+  // the "callback fired by an external system" shape the rule wants.
   const refresh = React.useCallback(async () => {
     try {
-      setThread(await getContactThread(canonicalKey));
+      const next = await getContactThread(canonicalKey);
+      const grew = next.messages.length > prevMessageCountRef.current;
+      prevMessageCountRef.current = next.messages.length;
+      setThread(next);
+      if (grew) {
+        if (isNearBottom()) {
+          scrollToBottom("smooth");
+        } else {
+          setHasNewMessages(true);
+        }
+      }
     } catch {
       // Transient failures just wait for the next poll.
     }
-  }, [canonicalKey]);
+  }, [canonicalKey, isNearBottom, scrollToBottom]);
 
   React.useEffect(() => {
     // Same reason as the per-request panel: delivery status and inbound
@@ -40,6 +71,18 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
     const interval = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [refresh]);
+
+  // Jump straight to the most recent message when a thread first opens —
+  // without this, "near the bottom" (the signal above) would start out
+  // false. Pure DOM scroll, no setState, so it's not subject to the same
+  // effect rule.
+  React.useEffect(() => {
+    scrollToBottom("auto");
+  }, [scrollToBottom]);
+
+  function handleScroll() {
+    if (isNearBottom()) setHasNewMessages(false);
+  }
 
   async function handleSend() {
     if (!thread.defaultOrganization || !thread.lastKnownNumber) return;
@@ -89,7 +132,7 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
         </div>
       )}
 
-      <div className="flex-1 space-y-2 overflow-y-auto p-4">
+      <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 space-y-2 overflow-y-auto p-4">
         {thread.messages.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma mensagem registrada.</p>}
         {thread.messages.map((m) => (
           <div
@@ -109,6 +152,20 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
           </div>
         ))}
       </div>
+
+      {hasNewMessages && (
+        <button
+          type="button"
+          onClick={() => {
+            scrollToBottom("smooth");
+            setHasNewMessages(false);
+          }}
+          className="flex items-center justify-center gap-1.5 border-t border-border bg-primary/10 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+        >
+          <ArrowDown className="size-3.5" />
+          Há novas mensagens nesse chat
+        </button>
+      )}
 
       <div className="space-y-2 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">

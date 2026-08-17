@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { NAV_BY_AREA, type NavArea } from "./nav-config";
+import { useUnreadMessageCount } from "./use-unread-message-count";
 
 export function MobileNav({ area, areaLabel }: { area: NavArea; areaLabel: string }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const items = NAV_BY_AREA[area];
+  const unreadCount = useUnreadMessageCount(area);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -27,6 +29,7 @@ export function MobileNav({ area, areaLabel }: { area: NavArea; areaLabel: strin
           {items.map((item) => {
             const active = pathname === item.href || (item.href !== "/app" && item.href !== "/ops" && pathname.startsWith(item.href));
             const Icon = item.icon;
+            const badge = item.href === "/ops/messages" ? unreadCount : 0;
             return (
               <Link
                 key={item.href}
@@ -39,6 +42,11 @@ export function MobileNav({ area, areaLabel }: { area: NavArea; areaLabel: strin
               >
                 <Icon className="size-4" />
                 {item.label}
+                {badge > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-status-danger px-1 text-[10px] font-medium text-white">
+                    {badge > 9 ? "9+" : badge}
+                  </span>
+                )}
               </Link>
             );
           })}

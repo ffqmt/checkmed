@@ -37,6 +37,7 @@ export type MessageContact = {
   context: string | null;
   previewText: string | null;
   previewAt: Date;
+  unreadCount: number;
 };
 
 const PREVIEW_WINDOW = 800;
@@ -79,6 +80,17 @@ export async function getMessageContacts(): Promise<MessageContact[]> {
   for (const g of outboundGroups) noteLastSeen(g.toNumber, g._max.createdAt);
   for (const g of inboundGroups) noteLastSeen(g.fromNumber, g._max.createdAt);
 
+  const unreadGroups = await prisma.whatsAppMessage.groupBy({
+    by: ["fromNumber"],
+    where: { direction: "INBOUND", seenByAnalystAt: null },
+    _count: { _all: true },
+  });
+  const unreadByKey = new Map<string, number>();
+  for (const g of unreadGroups) {
+    const key = canonicalPhoneKey(g.fromNumber);
+    unreadByKey.set(key, (unreadByKey.get(key) ?? 0) + g._count._all);
+  }
+
   const recent = await prisma.whatsAppMessage.findMany({
     orderBy: { createdAt: "desc" },
     take: PREVIEW_WINDOW,
@@ -106,6 +118,7 @@ export async function getMessageContacts(): Promise<MessageContact[]> {
         context: preview?.employeeName ? `Sobre: ${preview.employeeName}` : null,
         previewText: preview?.text ?? null,
         previewAt,
+        unreadCount: unreadByKey.get(canonicalKey) ?? 0,
       };
     })
     .sort((a, b) => b.previewAt.getTime() - a.previewAt.getTime());
@@ -129,6 +142,14 @@ export async function getContactThread(canonicalKey: string) {
       organization: { select: { id: true, name: true } },
       sentByUser: { select: { id: true, name: true } },
     },
+  });
+
+  // Opening the thread is what "reading" it means here — same as any
+  // messenger. Fire-and-await but don't let it block the response shape;
+  // idempotent on repeated polls once everything's already marked.
+  await prisma.whatsAppMessage.updateMany({
+    where: { direction: "INBOUND", fromNumber: { in: variants }, seenByAnalystAt: null },
+    data: { seenByAnalystAt: new Date() },
   });
 
   // Signed URLs are short-lived by design — computed fresh on every read
@@ -172,6 +193,12 @@ export async function getContactThread(canonicalKey: string) {
     defaultOrganization: last ? last.organization : null,
     lastKnownNumber,
   };
+}
+
+/** Total unread INBOUND messages across every contact — feeds the nav badge, polled independently of whichever thread (if any) is currently open. */
+export async function getUnreadMessageCount(): Promise<number> {
+  await requireInternalAccess();
+  return prisma.whatsAppMessage.count({ where: { direction: "INBOUND", seenByAnalystAt: null } });
 }
 
 /** For the "nova conversa" dialog's organization picker — every org an analyst might send as, not scoped to any existing conversation. */

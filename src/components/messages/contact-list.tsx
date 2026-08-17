@@ -47,6 +47,7 @@ export function ContactList({ contacts, selectedKey }: { contacts: MessageContac
       {filtered.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum contato encontrado.</p>}
       {filtered.map((c) => {
         const active = c.canonicalKey === selectedKey;
+        const unread = c.unreadCount > 0;
         return (
           <Link
             key={c.canonicalKey}
@@ -57,16 +58,29 @@ export function ContactList({ contacts, selectedKey }: { contacts: MessageContac
               active && "bg-muted",
             )}
           >
-            <Avatar>
+            <Avatar className={cn(unread && "ring-2 ring-primary/40")}>
               <AvatarFallback>{initials(c.label)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="truncate text-sm font-medium">{c.label}</p>
+                <p className={cn("truncate text-sm", unread ? "font-semibold text-foreground" : "font-medium")}>{c.label}</p>
                 <span className="shrink-0 text-[11px] text-muted-foreground">{formatRelativeToNow(c.previewAt)}</span>
               </div>
-              {c.context && <p className="truncate text-xs text-muted-foreground">{c.context}</p>}
-              {c.previewText && <p className="truncate text-xs text-muted-foreground">{c.previewText}</p>}
+              <div className="flex items-center justify-between gap-2">
+                {c.previewText ? (
+                  <p className={cn("truncate text-xs", unread ? "font-medium text-foreground" : "text-muted-foreground")}>
+                    {c.context ? `${c.context} · ` : ""}
+                    {c.previewText}
+                  </p>
+                ) : (
+                  c.context && <p className="truncate text-xs text-muted-foreground">{c.context}</p>
+                )}
+                {unread && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-status-danger px-1 text-[10px] font-medium text-white">
+                    {c.unreadCount > 9 ? "9+" : c.unreadCount}
+                  </span>
+                )}
+              </div>
             </div>
           </Link>
         );

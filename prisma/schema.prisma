@@ -812,6 +812,12 @@ model WhatsAppMessage {
   attachmentFileName      String?
   attachmentFileSize      Int?
 
+  // Only meaningful on INBOUND rows — when an analyst opened the contact
+  // thread containing this message. Deliberately separate from readAt
+  // (Meta's delivery-read-receipt on our OUTBOUND sends) — different axis
+  // entirely, never reused across the two meanings.
+  seenByAnalystAt DateTime?
+
   @@index([organizationId])
   @@index([requestId])
   @@map("whatsapp_messages")
@@ -852,7 +858,10 @@ model NotificationPreference {
   notifyOnWaitingExternalResponse Boolean      @default(true)
   notifyOnCompleted               Boolean      @default(true)
   notifyOnInconsistency           Boolean      @default(true)
-  channelsJson                    Json?
+  // Separate gate from the per-event booleans above — those decide WHICH
+  // events notify at all (in-app included), this decides whether WhatsApp
+  // specifically is one of the channels used for the events that are on.
+  notifyViaWhatsApp               Boolean      @default(true)
 
   @@unique([organizationId, userId])
   @@map("notification_preferences")
