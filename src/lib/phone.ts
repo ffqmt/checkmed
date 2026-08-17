@@ -2,3 +2,23 @@
 export function normalizePhoneNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
+
+/**
+ * Brazilian mobile numbers carry an extra "9" digit after the DDD (55 + DDD
+ * + 9 + 8 digits = 13 total) that older numbers/some contexts omit (55 +
+ * DDD + 8 digits = 12). Confirmed live: the same physical number we sent an
+ * outbound message to (13 digits) came back with only 12 digits as the
+ * sender on the inbound reply's webhook — Meta doesn't normalize this
+ * consistently. Returns every plausible representation of a number so a
+ * lookup can match regardless of which form is on file.
+ */
+export function phoneNumberVariants(value: string): string[] {
+  const digits = normalizePhoneNumber(value);
+  const variants = new Set([digits]);
+  if (digits.length === 13 && digits.startsWith("55") && digits[4] === "9") {
+    variants.add(digits.slice(0, 4) + digits.slice(5));
+  } else if (digits.length === 12 && digits.startsWith("55")) {
+    variants.add(digits.slice(0, 4) + "9" + digits.slice(4));
+  }
+  return [...variants];
+}

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { WhatsAppProvider, WhatsAppMessageStatus } from "@prisma/client";
-import { normalizePhoneNumber } from "@/lib/phone";
+import { normalizePhoneNumber, phoneNumberVariants } from "@/lib/phone";
 import { MetaWhatsAppAdapter } from "./adapters/meta-whatsapp.adapter";
 import { TwilioWhatsAppAdapter } from "./adapters/twilio-whatsapp.adapter";
 import { GenericWhatsAppAdapter } from "./adapters/generic-whatsapp.adapter";
@@ -189,7 +189,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
     if (!message.from) return;
     const from = normalizePhoneNumber(message.from);
     const lastOutbound = await prisma.whatsAppMessage.findFirst({
-      where: { organizationId, direction: "OUTBOUND", toNumber: from },
+      where: { organizationId, direction: "OUTBOUND", toNumber: { in: phoneNumberVariants(message.from) } },
       orderBy: { createdAt: "desc" },
     });
 
