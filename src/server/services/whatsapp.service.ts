@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import type { WhatsAppProvider, WhatsAppMessageStatus } from "@prisma/client";
-import { normalizePhoneNumber, phoneNumberVariants } from "@/lib/phone";
+import type { WhatsAppProvider, WhatsAppMessageStatus, WhatsAppIntegration } from "@prisma/client";
+import { normalizePhoneNumber, phoneNumberVariants, canonicalPhoneKey } from "@/lib/phone";
+import { storageAdapter, buildWhatsAppAttachmentPath } from "@/server/services/storage.service";
+import { STORAGE_BUCKETS } from "@/lib/supabase";
 import { MetaWhatsAppAdapter } from "./adapters/meta-whatsapp.adapter";
 import { TwilioWhatsAppAdapter } from "./adapters/twilio-whatsapp.adapter";
 import { GenericWhatsAppAdapter } from "./adapters/generic-whatsapp.adapter";
-import type { WhatsAppAdapter } from "./adapters/whatsapp-adapter.types";
+import type { WhatsAppAdapter, WhatsAppMediaInput } from "./adapters/whatsapp-adapter.types";
 
 type IntegrationConfig = { phoneNumberId: string | null; accessTokenEncrypted: string | null } | null;
 
@@ -27,6 +29,9 @@ function sanitizeMessageBody(body: string) {
   return body;
 }
 
+/** Unlike WhatsAppMediaInput (what an adapter needs to actually send bytes), this also carries where the file already lives in our own Storage — sendMediaMessage persists that alongside the message row so the bubble can render it back via a signed URL later. */
+export type WhatsAppOutboundMedia = WhatsAppMediaInput & { storageBucket: string; storagePath: string; fileSize: number };
+
 export interface WhatsAppService {
   sendTemplateMessage(
     organizationId: string,
@@ -37,6 +42,14 @@ export interface WhatsAppService {
     sentByUserId?: string,
   ): Promise<void>;
   sendTextMessage(organizationId: string, to: string, message: string, requestId?: string, sentByUserId?: string): Promise<void>;
+  sendMediaMessage(
+    organizationId: string,
+    to: string,
+    media: WhatsAppOutboundMedia,
+    caption?: string,
+    requestId?: string,
+    sentByUserId?: string,
+  ): Promise<void>;
   /** Meta's real webhook shape: {object, entry:[{changes:[{value:{metadata,statuses?,messages?}}]}]} — see below. */
   processWebhookPayload(payload: unknown): Promise<void>;
 }
@@ -130,6 +143,55 @@ export class DefaultWhatsAppService implements WhatsAppService {
     }
   }
 
+  async sendMediaMessage(
+    organizationId: string,
+    to: string,
+    media: WhatsAppOutboundMedia,
+    caption?: string,
+    requestId?: string,
+    sentByUserId?: string,
+  ): Promise<void> {
+    const integration = await prisma.whatsAppIntegration.findUnique({ where: { organizationId } });
+    const provider = integration?.provider ?? "OTHER";
+    const adapter = adapterFor(provider, integration);
+
+    const record = await prisma.whatsAppMessage.create({
+      data: {
+        organizationId,
+        requestId,
+        sentByUserId,
+        direction: "OUTBOUND",
+        fromNumber: integration?.phoneNumberId ?? "medcheck-sandbox",
+        toNumber: normalizePhoneNumber(to),
+        messageBody: sanitizeMessageBody(caption ?? ""),
+        status: "QUEUED",
+        attachmentStorageBucket: media.storageBucket,
+        attachmentStoragePath: media.storagePath,
+        attachmentMimeType: media.mimeType,
+        attachmentFileName: media.fileName,
+        attachmentFileSize: media.fileSize,
+      },
+    });
+
+    try {
+      const result = await adapter.sendMediaMessage(to, { buffer: media.buffer, mimeType: media.mimeType, fileName: media.fileName }, caption);
+      await prisma.whatsAppMessage.update({
+        where: { id: record.id },
+        data: {
+          status: result.status,
+          providerMessageId: result.providerMessageId,
+          sentAt: result.status === "SENT" ? new Date() : null,
+          errorMessage: result.errorMessage,
+        },
+      });
+    } catch (error) {
+      await prisma.whatsAppMessage.update({
+        where: { id: record.id },
+        data: { status: "FAILED", errorMessage: (error as Error).message },
+      });
+    }
+  }
+
   /**
    * Meta batches multiple entries/changes per call, and a single "value" can
    * carry either delivery-status updates or inbound customer messages (or,
@@ -154,7 +216,7 @@ export class DefaultWhatsAppService implements WhatsAppService {
           await this.applyDeliveryStatus(integration.organizationId, status);
         }
         for (const message of value.messages ?? []) {
-          await this.recordInboundMessage(integration.organizationId, phoneNumberId, message);
+          await this.recordInboundMessage(integration, phoneNumberId, message);
         }
       }
     }
@@ -188,31 +250,84 @@ export class DefaultWhatsAppService implements WhatsAppService {
    * request we most recently texted that same number about; if we never
    * texted them, there's nothing to attribute it to and it's just recorded
    * at the organization level.
+   *
+   * A non-text message carries a media reference (id + mime type), not the
+   * bytes — those need a separate authenticated fetch from Meta, done here
+   * so the message row already has a working attachment by the time it's
+   * first read. If that download fails, the message is still recorded (never
+   * silently dropped) with an honest note instead of a fabricated one.
    */
-  private async recordInboundMessage(organizationId: string, phoneNumberId: string, message: MetaWebhookMessage): Promise<void> {
+  private async recordInboundMessage(integration: WhatsAppIntegration, phoneNumberId: string, message: MetaWebhookMessage): Promise<void> {
     if (!message.from) return;
     const from = normalizePhoneNumber(message.from);
     const lastOutbound = await prisma.whatsAppMessage.findFirst({
-      where: { organizationId, direction: "OUTBOUND", toNumber: { in: phoneNumberVariants(message.from) } },
+      where: { organizationId: integration.organizationId, direction: "OUTBOUND", toNumber: { in: phoneNumberVariants(message.from) } },
       orderBy: { createdAt: "desc" },
     });
 
+    const mediaRef = message.image ?? message.document ?? message.audio ?? message.video ?? message.sticker;
+    let attachment: { bucket: string; path: string; mimeType: string; fileName: string; fileSize: number } | null = null;
+    let downloadError: string | null = null;
+
+    if (mediaRef?.id && integration.provider === "META_CLOUD_API") {
+      try {
+        const adapter = new MetaWhatsAppAdapter({ phoneNumberId: integration.phoneNumberId, accessTokenEncrypted: integration.accessTokenEncrypted });
+        const { buffer, mimeType } = await adapter.downloadMedia(mediaRef.id);
+        const fileName = message.document?.filename ?? guessFileName(message.type, mimeType);
+        const storagePath = buildWhatsAppAttachmentPath(canonicalPhoneKey(from), fileName);
+        await storageAdapter.upload(STORAGE_BUCKETS.evidence, storagePath, buffer, mimeType);
+        attachment = { bucket: STORAGE_BUCKETS.evidence, path: storagePath, mimeType, fileName, fileSize: buffer.length };
+      } catch (error) {
+        downloadError = (error as Error).message;
+      }
+    }
+
+    const caption = message.image?.caption ?? message.document?.caption ?? message.video?.caption ?? null;
+    const messageBody =
+      message.text?.body ??
+      caption ??
+      (attachment
+        ? ""
+        : downloadError
+          ? `[anexo recebido, mas não foi possível baixar: ${downloadError}]`
+          : `[mensagem do tipo "${message.type ?? "desconhecido"}" — sem suporte ainda]`);
+
     await prisma.whatsAppMessage.create({
       data: {
-        organizationId,
+        organizationId: integration.organizationId,
         requestId: lastOutbound?.requestId,
         direction: "INBOUND",
         fromNumber: from,
         toNumber: phoneNumberId,
-        messageBody: message.text?.body ?? `[mensagem do tipo "${message.type ?? "desconhecido"}" — sem suporte a texto ainda]`,
+        messageBody,
         status: "RECEIVED",
+        attachmentStorageBucket: attachment?.bucket,
+        attachmentStoragePath: attachment?.path,
+        attachmentMimeType: attachment?.mimeType,
+        attachmentFileName: attachment?.fileName,
+        attachmentFileSize: attachment?.fileSize,
       },
     });
   }
 }
 
+function guessFileName(type: string | undefined, mimeType: string): string {
+  const subtype = mimeType.split("/")[1]?.split(";")[0] ?? "bin";
+  return `${type ?? "arquivo"}.${subtype}`;
+}
+
 type MetaWebhookStatus = { id?: string; status?: string; errors?: { message?: string }[] };
-type MetaWebhookMessage = { from?: string; type?: string; text?: { body?: string } };
+type MetaWebhookMediaRef = { id?: string; mime_type?: string; sha256?: string; caption?: string; filename?: string };
+type MetaWebhookMessage = {
+  from?: string;
+  type?: string;
+  text?: { body?: string };
+  image?: MetaWebhookMediaRef;
+  document?: MetaWebhookMediaRef;
+  audio?: MetaWebhookMediaRef;
+  video?: MetaWebhookMediaRef;
+  sticker?: MetaWebhookMediaRef;
+};
 type MetaWebhookPayload = {
   entry?: {
     changes?: {

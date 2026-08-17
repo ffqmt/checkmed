@@ -150,3 +150,9 @@ export function buildStoragePath(requestId: string, originalFileName: string): s
   const ext = path.extname(originalFileName) || "";
   return `${requestId}/${crypto.randomUUID()}${ext}`;
 }
+
+/** Same evidence-files bucket as buildStoragePath, but keyed by the WhatsApp contact rather than a requestId — a conversation attachment often isn't tied to any case. */
+export function buildWhatsAppAttachmentPath(contactKey: string, originalFileName: string): string {
+  const ext = path.extname(originalFileName) || "";
+  return `whatsapp/${contactKey}/${crypto.randomUUID()}${ext}`;
+}

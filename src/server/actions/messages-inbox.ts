@@ -7,6 +7,12 @@ import { recordAuditLog } from "@/server/audit";
 import { permissions } from "@/lib/rbac";
 import { canonicalPhoneKey, phoneNumberVariants } from "@/lib/phone";
 import { whatsAppService } from "@/server/services/whatsapp.service";
+import { storageAdapter, buildWhatsAppAttachmentPath, type SignedUploadTarget } from "@/server/services/storage.service";
+import { STORAGE_BUCKETS } from "@/lib/supabase";
+import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/validations/certificate-request";
+
+/** Shape a client passes back to sendMessageToContact/sendWhatsAppTextMessage once beginMessageAttachmentUpload's target has been uploaded to directly. */
+export type MessageAttachmentInput = { storagePath: string; fileName: string; mimeType: string; fileSize: number };
 
 async function requireInternalAccess() {
   const session = await auth();
@@ -125,6 +131,18 @@ export async function getContactThread(canonicalKey: string) {
     },
   });
 
+  // Signed URLs are short-lived by design — computed fresh on every read
+  // rather than stored, so a link never outlives its intended window.
+  const messagesWithAttachments = await Promise.all(
+    messages.map(async (m) => ({
+      ...m,
+      attachmentUrl:
+        m.attachmentStorageBucket && m.attachmentStoragePath
+          ? await storageAdapter.getSignedUrl(m.attachmentStorageBucket, m.attachmentStoragePath, 600)
+          : null,
+    })),
+  );
+
   const relatedRequestsMap = new Map<string, { id: string; employeeName: string }>();
   for (const m of messages) {
     if (m.request) relatedRequestsMap.set(m.request.id, { id: m.request.id, employeeName: m.request.employeeName });
@@ -147,7 +165,7 @@ export async function getContactThread(canonicalKey: string) {
   const contactLabel = resolveContactLabel({ clinicName, orgName: last?.organization.name ?? null, canonicalKey });
 
   return {
-    messages,
+    messages: messagesWithAttachments,
     contactLabel,
     relatedRequests: [...relatedRequestsMap.values()],
     // Whoever we most recently talked to this contact as — no picker, just visible before hitting send.
@@ -162,19 +180,54 @@ export async function listOrganizationsForCompose() {
   return prisma.organization.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
 }
 
-/** Sent from the central inbox rather than a specific request's own panel — intentionally not tagged to a case (tagging still happens by replying from inside a request, as today). */
-export async function sendMessageToContact(organizationId: string, toNumber: string, message: string) {
-  const session = await requireInternalAccess();
-  if (!toNumber || !message.trim()) return { error: "Informe o número e a mensagem." };
+export type BeginMessageAttachmentUploadResult = { error: string } | { uploadTarget: SignedUploadTarget; storagePath: string };
 
-  await whatsAppService.sendTextMessage(organizationId, toNumber, message, undefined, session.user.id);
+/** Same direct-to-storage pattern as evidence uploads — reuses the evidence-files bucket rather than provisioning a new one, keyed by contact instead of requestId since a WhatsApp attachment often isn't tied to any case. */
+export async function beginMessageAttachmentUpload(
+  toNumber: string,
+  fileName: string,
+  mimeType: string,
+  fileSize: number,
+): Promise<BeginMessageAttachmentUploadResult> {
+  await requireInternalAccess();
+
+  if (!ACCEPTED_FILE_TYPES.includes(mimeType)) {
+    return { error: "Formato não suportado. Envie PDF, JPG, JPEG ou PNG." };
+  }
+  if (fileSize > MAX_FILE_SIZE_BYTES) {
+    return { error: "Arquivo maior que o limite permitido de 15MB." };
+  }
+
+  const storagePath = buildWhatsAppAttachmentPath(canonicalPhoneKey(toNumber), fileName);
+  const uploadTarget = await storageAdapter.createSignedUploadUrl(STORAGE_BUCKETS.evidence, storagePath, 300);
+  return { uploadTarget, storagePath };
+}
+
+/** Sent from the central inbox rather than a specific request's own panel — intentionally not tagged to a case (tagging still happens by replying from inside a request, as today). */
+export async function sendMessageToContact(organizationId: string, toNumber: string, message: string, attachment?: MessageAttachmentInput) {
+  const session = await requireInternalAccess();
+  if (!toNumber || (!message.trim() && !attachment)) return { error: "Informe o número e uma mensagem ou anexo." };
+
+  if (attachment) {
+    const buffer = await storageAdapter.download(STORAGE_BUCKETS.evidence, attachment.storagePath);
+    await whatsAppService.sendMediaMessage(
+      organizationId,
+      toNumber,
+      { buffer, mimeType: attachment.mimeType, fileName: attachment.fileName, storageBucket: STORAGE_BUCKETS.evidence, storagePath: attachment.storagePath, fileSize: attachment.fileSize },
+      message.trim() || undefined,
+      undefined,
+      session.user.id,
+    );
+  } else {
+    await whatsAppService.sendTextMessage(organizationId, toNumber, message, undefined, session.user.id);
+  }
 
   await recordAuditLog({
     organizationId,
     userId: session.user.id,
     action: "WHATSAPP_MESSAGE_SENT",
     entityType: "WhatsAppMessage",
-    newData: { toNumber },
+    newData: { toNumber, hasAttachment: Boolean(attachment) },
   });
 
   revalidatePath("/ops/messages");

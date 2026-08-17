@@ -22,4 +22,9 @@ export class TwilioWhatsAppAdapter implements WhatsAppAdapter {
     await simulateLatency(200, 700);
     return { providerMessageId: null, status: "SIMULATED", errorMessage: NOTE };
   }
+
+  async sendMediaMessage(): Promise<WhatsAppSendResult> {
+    await simulateLatency(200, 700);
+    return { providerMessageId: null, status: "SIMULATED", errorMessage: NOTE };
+  }
 }

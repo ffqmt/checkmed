@@ -4,6 +4,8 @@ export type WhatsAppSendResult = {
   errorMessage?: string;
 };
 
+export type WhatsAppMediaInput = { buffer: Buffer; mimeType: string; fileName: string };
+
 export interface WhatsAppAdapter {
   sendTemplateMessage(
     to: string,
@@ -11,4 +13,5 @@ export interface WhatsAppAdapter {
     variables: Record<string, string>,
   ): Promise<WhatsAppSendResult>;
   sendTextMessage(to: string, message: string): Promise<WhatsAppSendResult>;
+  sendMediaMessage(to: string, media: WhatsAppMediaInput, caption?: string): Promise<WhatsAppSendResult>;
 }

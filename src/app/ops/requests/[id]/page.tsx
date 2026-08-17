@@ -16,6 +16,7 @@ import { Field } from "@/components/shared/field";
 import { EvidenceFileLink } from "@/components/shared/evidence-file-link";
 import { ContactAttemptForm } from "@/components/requests/contact-attempt-form";
 import { WhatsAppPanel } from "@/components/requests/whatsapp-panel";
+import { getWhatsAppMessages } from "@/server/actions/whatsapp";
 import { FinalReportForm } from "@/components/requests/final-report-form";
 import { ApproveReportButton } from "@/components/requests/approve-report-button";
 import { formatDate, formatDateTime } from "@/lib/utils";
@@ -44,7 +45,6 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
       similarityMatches: { include: { matchedRequest: true } },
       riskAnalysis: { include: { alerts: true } },
       contactAttempts: { include: { responsibleUser: true, evidenceFile: true }, orderBy: { attemptedAt: "desc" } },
-      whatsAppMessages: { orderBy: { createdAt: "asc" }, include: { sentByUser: { select: { id: true, name: true } } } },
       timelineEvents: { orderBy: { createdAt: "asc" }, include: { user: true } },
       auditLogs: { orderBy: { createdAt: "desc" }, take: 50, include: { user: true } },
       finalReport: true,
@@ -56,6 +56,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
   const canReview = permissions.reviewAsAnalyst(session!.user.role);
   const canApprove = permissions.approveSupervisorReview(session!.user.role);
   const primaryFile = request.documents[0];
+  const whatsAppMessages = await getWhatsAppMessages(id);
 
   return (
     <div className="space-y-6">
@@ -537,7 +538,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
               <CardTitle className="text-base">Mensagens</CardTitle>
             </CardHeader>
             <CardContent>
-              <WhatsAppPanel requestId={request.id} messages={request.whatsAppMessages} />
+              <WhatsAppPanel requestId={request.id} messages={whatsAppMessages} />
             </CardContent>
           </Card>
         </TabsContent>

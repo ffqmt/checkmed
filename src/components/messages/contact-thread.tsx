@@ -3,23 +3,28 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Send } from "lucide-react";
+import { Send, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { AttachmentPreview } from "@/components/shared/attachment-preview";
 import { formatDateTime, outboundSenderLabel } from "@/lib/utils";
 import { WHATSAPP_STATUS_TONE } from "@/lib/constants";
-import { getContactThread, sendMessageToContact } from "@/server/actions/messages-inbox";
+import { getContactThread, sendMessageToContact, beginMessageAttachmentUpload } from "@/server/actions/messages-inbox";
+import { uploadFileToTarget, storagePathFromUploadTarget } from "@/lib/upload-client";
 
 type ThreadData = Awaited<ReturnType<typeof getContactThread>>;
 
 const POLL_INTERVAL_MS = 5000;
+const ATTACHMENT_ACCEPTED = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
 /** Render with `key={canonicalKey}` from the parent — forces a fresh mount (and fresh local state from `initialThread`) on contact switch instead of needing an effect to resync stale local state with a changed prop. */
 export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: string; initialThread: ThreadData }) {
   const [thread, setThread] = React.useState(initialThread);
   const [message, setMessage] = React.useState("");
+  const [attachmentFile, setAttachmentFile] = React.useState<File | null>(null);
   const [pending, setPending] = React.useState(false);
+  const attachmentInputRef = React.useRef<HTMLInputElement>(null);
 
   const refresh = React.useCallback(async () => {
     try {
@@ -38,16 +43,37 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
 
   async function handleSend() {
     if (!thread.defaultOrganization || !thread.lastKnownNumber) return;
+    if (!message.trim() && !attachmentFile) return;
     setPending(true);
-    const result = await sendMessageToContact(thread.defaultOrganization.id, thread.lastKnownNumber, message);
-    setPending(false);
-    if (result?.error) {
-      toast.error(result.error);
-      return;
+    try {
+      let attachment: { storagePath: string; fileName: string; mimeType: string; fileSize: number } | undefined;
+      if (attachmentFile) {
+        const begin = await beginMessageAttachmentUpload(thread.lastKnownNumber, attachmentFile.name, attachmentFile.type, attachmentFile.size);
+        if ("error" in begin) {
+          toast.error(begin.error);
+          return;
+        }
+        await uploadFileToTarget(begin.uploadTarget, attachmentFile);
+        attachment = {
+          storagePath: storagePathFromUploadTarget(begin.uploadTarget),
+          fileName: attachmentFile.name,
+          mimeType: attachmentFile.type,
+          fileSize: attachmentFile.size,
+        };
+      }
+
+      const result = await sendMessageToContact(thread.defaultOrganization.id, thread.lastKnownNumber, message, attachment);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Mensagem enviada.");
+      setMessage("");
+      setAttachmentFile(null);
+      await refresh();
+    } finally {
+      setPending(false);
     }
-    toast.success("Mensagem enviada.");
-    setMessage("");
-    await refresh();
   }
 
   return (
@@ -76,7 +102,8 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
               </span>
               <Badge variant={WHATSAPP_STATUS_TONE[m.status]}>{m.status}</Badge>
             </div>
-            <p className="mt-1">{m.messageBody}</p>
+            {m.messageBody && <p className="mt-1">{m.messageBody}</p>}
+            {m.attachmentUrl && <AttachmentPreview url={m.attachmentUrl} fileName={m.attachmentFileName} mimeType={m.attachmentMimeType} />}
             {m.errorMessage && <p className="mt-1 text-xs text-status-warning">{m.errorMessage}</p>}
             <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</p>
           </div>
@@ -88,8 +115,30 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
           Enviando como: <span className="font-medium text-foreground">{thread.defaultOrganization?.name ?? "—"}</span>
         </p>
         <Textarea placeholder="Mensagem" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} />
-        <div className="flex justify-end">
-          <Button size="sm" onClick={handleSend} disabled={pending || !message.trim() || !thread.defaultOrganization || !thread.lastKnownNumber}>
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          accept={ATTACHMENT_ACCEPTED.join(",")}
+          className="hidden"
+          onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
+        />
+        {attachmentFile && (
+          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+            <span className="truncate">{attachmentFile.name}</span>
+            <button type="button" onClick={() => setAttachmentFile(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => attachmentInputRef.current?.click()}>
+            <Paperclip /> Anexar
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleSend}
+            disabled={pending || (!message.trim() && !attachmentFile) || !thread.defaultOrganization || !thread.lastKnownNumber}
+          >
             <Send /> Enviar
           </Button>
         </div>
