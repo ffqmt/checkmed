@@ -2,7 +2,8 @@ import { MessageSquare } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ContactList } from "@/components/messages/contact-list";
 import { ContactThread } from "@/components/messages/contact-thread";
-import { getMessageContacts, getContactThread } from "@/server/actions/messages-inbox";
+import { NewConversationDialog } from "@/components/messages/new-conversation-dialog";
+import { getMessageContacts, getContactThread, listOrganizationsForCompose } from "@/server/actions/messages-inbox";
 
 export default async function OpsMessagesPage({
   searchParams,
@@ -10,14 +11,17 @@ export default async function OpsMessagesPage({
   searchParams: Promise<{ contact?: string }>;
 }) {
   const { contact } = await searchParams;
-  const contacts = await getMessageContacts();
+  const [contacts, organizations] = await Promise.all([getMessageContacts(), listOrganizationsForCompose()]);
   const thread = contact ? await getContactThread(contact) : null;
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div>
-        <h2 className="text-lg font-semibold">Central de Mensagens</h2>
-        <p className="text-sm text-muted-foreground">Todas as conversas de WhatsApp, por contato — independente da solicitação.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold">Central de Mensagens</h2>
+          <p className="text-sm text-muted-foreground">Todas as conversas de WhatsApp, por contato — independente da solicitação.</p>
+        </div>
+        <NewConversationDialog organizations={organizations} />
       </div>
 
       <div className="flex h-[calc(100vh-13rem)] overflow-hidden rounded-xl border border-border bg-card">

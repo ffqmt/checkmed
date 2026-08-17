@@ -156,6 +156,12 @@ export async function getContactThread(canonicalKey: string) {
   };
 }
 
+/** For the "nova conversa" dialog's organization picker — every org an analyst might send as, not scoped to any existing conversation. */
+export async function listOrganizationsForCompose() {
+  await requireInternalAccess();
+  return prisma.organization.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
+}
+
 /** Sent from the central inbox rather than a specific request's own panel — intentionally not tagged to a case (tagging still happens by replying from inside a request, as today). */
 export async function sendMessageToContact(organizationId: string, toNumber: string, message: string) {
   const session = await requireInternalAccess();
