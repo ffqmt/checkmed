@@ -1,14 +1,51 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
+import { Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 import { initials, formatRelativeToNow } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { MessageContact } from "@/server/actions/messages-inbox";
 
-/** Server-rendered on purpose — selection state lives in the URL (`?contact=`), matching the Pagination/ViewToggle convention, so this list never needs to be a client component. */
+/**
+ * Client component so search can filter instantly with no round-trip — the
+ * full contact list is already fetched in one query and is small at today's
+ * volume, so there's no reason to push filtering to the server (unlike
+ * FilterBar's blur/Enter-commit pattern, which exists to avoid re-querying
+ * a large table). Selection itself still lives in the URL (`?contact=`).
+ */
 export function ContactList({ contacts, selectedKey }: { contacts: MessageContact[]; selectedKey?: string }) {
+  const [query, setQuery] = React.useState("");
+
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return contacts;
+    const digits = q.replace(/\D/g, "");
+    return contacts.filter((c) => {
+      if (c.label.toLowerCase().includes(q)) return true;
+      if (c.context?.toLowerCase().includes(q)) return true;
+      if (digits && c.canonicalKey.includes(digits)) return true;
+      return false;
+    });
+  }, [contacts, query]);
+
   return (
     <div className="flex flex-col">
-      {contacts.map((c) => {
+      <div className="border-b border-border/50 p-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar contato..."
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
+      </div>
+      {filtered.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum contato encontrado.</p>}
+      {filtered.map((c) => {
         const active = c.canonicalKey === selectedKey;
         return (
           <Link
