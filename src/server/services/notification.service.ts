@@ -97,7 +97,8 @@ export class DefaultNotificationService implements NotificationService {
     });
 
     const templateName = EVENT_TO_WHATSAPP_TEMPLATE[params.event];
-    if (templateName && params.toPhone) {
+    const whatsappAllowed = !preference || preference.notifyViaWhatsApp !== false;
+    if (templateName && params.toPhone && whatsappAllowed) {
       await whatsAppService.sendTemplateMessage(
         params.organizationId,
         params.toPhone,

@@ -56,8 +56,8 @@ export function CreateUserDialog() {
             <Input id="email" name="email" type="email" required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="phone">Telefone (opcional)</Label>
-            <Input id="phone" name="phone" />
+            <Label htmlFor="phone">WhatsApp (opcional)</Label>
+            <Input id="phone" name="phone" placeholder="Ex: 5511987654321" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="role">Papel</Label>

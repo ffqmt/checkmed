@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordAuditLog } from "@/server/audit";
 import { permissions } from "@/lib/rbac";
-import { createUserSchema, updateNotificationPreferenceSchema } from "@/lib/validations/user";
+import { createUserSchema, updateNotificationPreferenceSchema, updateMyPhoneSchema } from "@/lib/validations/user";
 
 export async function createOrganizationUser(input: unknown) {
   const session = await auth();
@@ -137,6 +137,20 @@ export async function toggleOrganizationUserStatus(userId: string) {
   });
 
   revalidatePath("/app/users");
+  return { success: true };
+}
+
+/** Self-service — the number used for MedCheck's automatic WhatsApp notifications, editable by the user it belongs to (not just settable once by whoever created the account). */
+export async function updateMyPhone(input: unknown) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Sessão inválida.");
+
+  const parsed = updateMyPhoneSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Número inválido." };
+
+  await prisma.user.update({ where: { id: session.user.id }, data: { phone: parsed.data.phone } });
+
+  revalidatePath("/app/settings");
   return { success: true };
 }
 

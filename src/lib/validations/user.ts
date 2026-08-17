@@ -24,6 +24,11 @@ export const updateNotificationPreferenceSchema = z.object({
   notifyOnWaitingExternalResponse: z.boolean(),
   notifyOnCompleted: z.boolean(),
   notifyOnInconsistency: z.boolean(),
+  notifyViaWhatsApp: z.boolean(),
+});
+
+export const updateMyPhoneSchema = z.object({
+  phone: z.string().trim().min(8, "Informe um número válido.").max(20, "Número muito longo."),
 });
 
 export type UpdateNotificationPreferenceInput = z.infer<

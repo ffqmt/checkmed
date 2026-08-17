@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ShieldQuestion } from "lucide-react";
 import { NotificationPreferencesForm } from "./notification-preferences-form";
+import { WhatsAppNumberForm } from "./whatsapp-number-form";
 import { DataPrivacyRequestForm } from "./data-privacy-request-form";
 import { formatDateTime } from "@/lib/utils";
 import { DATA_PRIVACY_REQUEST_TYPE_LABELS, DATA_PRIVACY_REQUEST_STATUS_LABELS } from "@/lib/constants";
@@ -19,7 +20,7 @@ const STATUS_VARIANT: Record<string, "success" | "neutral" | "warning" | "danger
 export default async function ClientSettingsPage() {
   const session = await auth();
 
-  const [preference, privacyRequests] = await Promise.all([
+  const [preference, privacyRequests, me] = await Promise.all([
     prisma.notificationPreference.findFirst({
       where: { organizationId: session!.user.organizationId!, userId: session!.user.id },
     }),
@@ -28,6 +29,8 @@ export default async function ClientSettingsPage() {
       orderBy: { createdAt: "desc" },
       take: 20,
     }),
+    // phone isn't in the JWT session — fetched fresh so it reflects an edit from this same page without needing to log back in.
+    prisma.user.findUnique({ where: { id: session!.user.id }, select: { phone: true } }),
   ]);
 
   return (
@@ -42,14 +45,17 @@ export default async function ClientSettingsPage() {
           <CardTitle className="text-base">Notificações</CardTitle>
           <CardDescription>Escolha em quais momentos você quer ser notificado sobre suas solicitações.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <WhatsAppNumberForm defaultPhone={me?.phone ?? null} />
           <NotificationPreferencesForm
+            hasPhone={Boolean(me?.phone)}
             defaultValues={{
               notifyOnRequestReceived: preference?.notifyOnRequestReceived ?? true,
               notifyOnProcessingStarted: preference?.notifyOnProcessingStarted ?? true,
               notifyOnWaitingExternalResponse: preference?.notifyOnWaitingExternalResponse ?? true,
               notifyOnCompleted: preference?.notifyOnCompleted ?? true,
               notifyOnInconsistency: preference?.notifyOnInconsistency ?? true,
+              notifyViaWhatsApp: preference?.notifyViaWhatsApp ?? true,
             }}
           />
         </CardContent>

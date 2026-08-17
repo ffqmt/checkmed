@@ -21,9 +21,10 @@ type Values = {
   notifyOnWaitingExternalResponse: boolean;
   notifyOnCompleted: boolean;
   notifyOnInconsistency: boolean;
+  notifyViaWhatsApp: boolean;
 };
 
-export function NotificationPreferencesForm({ defaultValues }: { defaultValues: Values }) {
+export function NotificationPreferencesForm({ defaultValues, hasPhone }: { defaultValues: Values; hasPhone: boolean }) {
   const [values, setValues] = React.useState(defaultValues);
   const [pending, setPending] = React.useState(false);
 
@@ -36,6 +37,21 @@ export function NotificationPreferencesForm({ defaultValues }: { defaultValues: 
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-3">
+        <div>
+          <Label>Receber notificações por WhatsApp</Label>
+          <p className="text-xs text-muted-foreground">
+            {hasPhone
+              ? "Além do aviso aqui no painel, os eventos marcados abaixo também chegam pelo seu WhatsApp."
+              : "Cadastre seu WhatsApp acima para ativar."}
+          </p>
+        </div>
+        <Switch
+          checked={values.notifyViaWhatsApp}
+          disabled={!hasPhone}
+          onCheckedChange={(checked) => setValues((v) => ({ ...v, notifyViaWhatsApp: checked }))}
+        />
+      </div>
       {OPTIONS.map((opt) => (
         <div key={opt.key} className="flex items-center justify-between gap-4">
           <div>
