@@ -480,6 +480,23 @@ model DocumentFile {
 // EXTRACTION
 // ============================================================================
 
+/**
+ * Content-addressed cache of raw Claude Vision output, keyed by the file's
+ * own sha256 — the same bytes always deserve the same extraction. This is
+ * what lets the "read the document before the form is even filled in"
+ * preview step and the real validation workflow share one Claude call
+ * instead of paying for the same document twice. Stores the raw
+ * pre-normalization schema output (dates as ISO strings) so normalization
+ * logic only lives in one place and always runs, cache hit or not.
+ */
+model DocumentIntelligenceCache {
+  sha256Hash        String   @id
+  rawExtractionJson Json
+  createdAt         DateTime @default(now())
+
+  @@map("document_intelligence_cache")
+}
+
 model ExtractedData {
   id        String                    @id @default(cuid())
   requestId String                    @unique

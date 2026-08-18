@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUploadDropzone } from "@/components/shared/file-upload-dropzone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { beginCertificateRequestUpload, finalizeCertificateRequestUpload } from "@/server/actions/certificate-requests";
+import { beginDocumentPreviewUpload, previewExtractCertificateData } from "@/server/actions/document-preview";
 import { uploadFileToTarget, sha256Hex, storagePathFromUploadTarget } from "@/lib/upload-client";
+import { formatCpf } from "@/lib/masking";
 
 const LEGAL_BASES = [
   { value: "cumprimento_obrigacao_legal", label: "Cumprimento de obrigação legal (Art. 7º, II)" },
@@ -24,6 +26,60 @@ export function NewRequestForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeDocument, setEmployeeDocument] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+  const nameTouched = useRef(false);
+  const documentTouched = useRef(false);
+  const extractionAttempt = useRef(0);
+
+  async function handleFileChange(nextFile: File | null) {
+    setFile(nextFile);
+    setAutoFilled(false);
+    const attempt = ++extractionAttempt.current;
+    if (!nextFile) {
+      setExtracting(false);
+      return;
+    }
+
+    setExtracting(true);
+    try {
+      const begin = await beginDocumentPreviewUpload({
+        fileName: nextFile.name,
+        mimeType: nextFile.type,
+        fileSize: nextFile.size,
+      });
+      if (attempt !== extractionAttempt.current) return;
+      if ("error" in begin) return;
+
+      await uploadFileToTarget(begin.uploadTarget, nextFile);
+      if (attempt !== extractionAttempt.current) return;
+
+      const storagePath = storagePathFromUploadTarget(begin.uploadTarget);
+      const result = await previewExtractCertificateData({ storagePath, mimeType: nextFile.type });
+      if (attempt !== extractionAttempt.current) return;
+      if ("error" in result) return;
+
+      let filledSomething = false;
+      if (result.employeeName && !nameTouched.current) {
+        setEmployeeName(result.employeeName);
+        filledSomething = true;
+      }
+      if (result.employeeDocument && !documentTouched.current) {
+        setEmployeeDocument(formatCpf(result.employeeDocument));
+        filledSomething = true;
+      }
+      setAutoFilled(filledSomething);
+    } catch (err) {
+      // Leitura automática é um bônus, não um requisito — se falhar, o RH
+      // simplesmente preenche os campos à mão como sempre foi possível.
+      console.error("Falha ao pré-ler o documento", err);
+    } finally {
+      if (attempt === extractionAttempt.current) setExtracting(false);
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,22 +148,51 @@ export function NewRequestForm() {
           <CardTitle className="text-base">Documento</CardTitle>
         </CardHeader>
         <CardContent>
-          <FileUploadDropzone name="file" onFileChange={setFile} />
+          <FileUploadDropzone name="file" onFileChange={handleFileChange} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Dados do colaborador</CardTitle>
+          {extracting && (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> Lendo documento para preencher automaticamente...
+            </p>
+          )}
+          {!extracting && autoFilled && (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Sparkles className="size-3" /> Nome e CPF preenchidos a partir do documento — confira antes de enviar.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="employeeName">Nome completo</Label>
-            <Input id="employeeName" name="employeeName" required />
+            <Input
+              id="employeeName"
+              name="employeeName"
+              required
+              value={employeeName}
+              onChange={(e) => {
+                nameTouched.current = true;
+                setEmployeeName(e.target.value);
+              }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="employeeDocument">CPF</Label>
-            <Input id="employeeDocument" name="employeeDocument" placeholder="000.000.000-00" required />
+            <Input
+              id="employeeDocument"
+              name="employeeDocument"
+              placeholder="000.000.000-00"
+              required
+              value={employeeDocument}
+              onChange={(e) => {
+                documentTouched.current = true;
+                setEmployeeDocument(e.target.value);
+              }}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="employeeRegistration">Matrícula (opcional)</Label>

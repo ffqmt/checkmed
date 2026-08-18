@@ -123,6 +123,9 @@ export type DocumentIntelligenceResult = {
   extraction: ExtractedMedicalCertificateData;
   contentAuthenticityRiskScore: number;
   contentFindings: Array<{ area: string; description: string; severity: "info" | "low" | "medium" | "high" }>;
+  /** Patient/employee identity fields — kept separate from `extraction` because they exist only to prefill the request form client-side and are never persisted (the app otherwise only ever stores the masked CPF). */
+  patientName: string | null;
+  patientCpf: string | null;
 };
 
 export type AiContentDetectionResult = {

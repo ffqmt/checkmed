@@ -42,6 +42,7 @@ const ExtractionSchema = z.object({
   cidCode: z.string().describe('Empty string "" if not present.'),
   qrCodeContent: z.string().describe('Raw content encoded in a QR code, if one is visible. Empty string "" otherwise.'),
   authenticationUrl: z.string().describe('A verification/authentication URL printed on the document, if any. Empty string "" otherwise.'),
+  patientName: z.string().describe('Nome completo do paciente/colaborador exatamente como aparece no documento (não confundir com o nome do médico). Empty string "" if not present.'),
   patientCpf: z.string().describe('The patient\'s CPF exactly as printed in the document body, digits only. Empty string "" if not present.'),
 
   contentAuthenticityRiskScore: z
@@ -123,7 +124,16 @@ function documentContentBlock(buffer: Buffer, mimeType: string) {
   return { type: "image" as const, source: { type: "base64" as const, media_type, data } };
 }
 
-export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: string }): Promise<DocumentIntelligenceResult> {
+export type RawClaudeExtraction = z.infer<typeof ExtractionSchema>;
+
+/**
+ * The expensive half: one Claude Vision call, returning the raw structured
+ * output exactly as the model produced it (dates as ISO strings, "not
+ * present" as ""). Split out from normalization so a caller with a cache hit
+ * on the file's sha256 (see document-intelligence.service.ts) can skip this
+ * entirely while still running the same normalizeExtraction() below.
+ */
+export async function fetchRawExtraction(file: { buffer: Buffer; mimeType: string }): Promise<RawClaudeExtraction> {
   const { buffer, mimeType } =
     file.mimeType === "application/pdf" ? file : await ensureImageFitsClaudeLimit(file.buffer, file.mimeType);
 
@@ -164,7 +174,11 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
   if (!parsed) {
     throw new Error("Claude não retornou uma extração estruturada válida.");
   }
+  return parsed;
+}
 
+/** Pure post-processing: sentinel-to-null, date parsing, the deterministic CPF check-digit bump. Runs identically whether `parsed` just came off the API or out of the cache. */
+export function normalizeExtraction(parsed: RawClaudeExtraction): DocumentIntelligenceResult {
   const contentFindings = [...parsed.contentFindings];
   let contentAuthenticityRiskScore = parsed.contentAuthenticityRiskScore;
 
@@ -204,5 +218,11 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
     },
     contentAuthenticityRiskScore,
     contentFindings,
+    patientName: emptyToNull(parsed.patientName),
+    patientCpf: emptyToNull(parsed.patientCpf),
   };
+}
+
+export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: string }): Promise<DocumentIntelligenceResult> {
+  return normalizeExtraction(await fetchRawExtraction(file));
 }

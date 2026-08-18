@@ -156,3 +156,9 @@ export function buildWhatsAppAttachmentPath(contactKey: string, originalFileName
   const ext = path.extname(originalFileName) || "";
   return `whatsapp/${contactKey}/${crypto.randomUUID()}${ext}`;
 }
+
+/** For the new-request form's pre-fill step: the file is read once, before a request even exists, to auto-populate the employee name/CPF fields. Removed right after extraction — the real, permanent copy is uploaded again under buildStoragePath once the request is actually created. */
+export function buildPreviewStoragePath(originalFileName: string): string {
+  const ext = path.extname(originalFileName) || "";
+  return `preview/${crypto.randomUUID()}${ext}`;
+}
