@@ -39,9 +39,9 @@ function renderEmailHtml(params: {
         <td align="center">
           <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #dce1e8;">
             <tr>
-              <td style="background:#17203a;padding:22px 32px;">
-                <img src="${appBaseUrl()}/brand/logo-white.png" alt="MedCheck" height="28" style="display:block;height:28px;width:auto;" />
-                <span style="display:block;color:#8ba4d6;font-size:11px;margin-top:6px;letter-spacing:.04em;text-transform:uppercase;">Validação de atestados médicos</span>
+              <td style="background:#17203a;padding:26px 32px;">
+                <img src="${appBaseUrl()}/brand/logo-white.png" alt="MedCheck" height="40" style="display:block;height:40px;width:auto;" />
+                <span style="display:block;color:#8ba4d6;font-size:11px;margin-top:10px;letter-spacing:.04em;text-transform:uppercase;">Validação de atestados médicos</span>
               </td>
             </tr>
             <tr>
