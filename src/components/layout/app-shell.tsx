@@ -61,7 +61,7 @@ export function AppShell({
           </div>
           <div className="flex items-center gap-2">
             {actions}
-            <NotificationBell userId={user.id} />
+            <NotificationBell userId={user.id} role={user.role} />
             <UserMenu name={user.name} email={user.email} role={user.role} />
           </div>
         </header>
