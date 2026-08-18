@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image";
 
 const LAST_UPDATED = "17 de agosto de 2026";
 
@@ -9,7 +9,7 @@ export default function PrivacyPolicyPage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-6 py-5">
           <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <ShieldCheck className="size-4" />
+            <Image src="/brand/icon-white.png" alt="" width={16} height={16} className="size-4" />
           </div>
           <Link href="/" className="text-base font-semibold">
             MedCheck

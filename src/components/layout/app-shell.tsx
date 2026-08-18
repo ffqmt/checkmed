@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image";
 import { SidebarNav } from "./sidebar-nav";
 import { MobileNav } from "./mobile-nav";
 import { UserMenu } from "./user-menu";
@@ -29,7 +29,7 @@ export function AppShell({
       <aside className="fixed inset-y-0 left-0 hidden w-64 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="flex items-center gap-2 px-5 py-5">
           <div className="flex size-8 items-center justify-center rounded-lg bg-white/10">
-            <ShieldCheck className="size-4 text-white" />
+            <Image src="/brand/icon-white.png" alt="" width={20} height={20} className="size-5" />
           </div>
           <div>
             <p className="text-sm font-semibold text-white">MedCheck</p>
@@ -51,7 +51,7 @@ export function AppShell({
           <div className="flex items-center gap-2 lg:hidden">
             <MobileNav area={area} areaLabel={areaLabel} />
             <Link href="/" className="flex items-center gap-2">
-              <ShieldCheck className="size-5 text-primary" />
+              <Image src="/brand/icon-color.png" alt="" width={20} height={20} className="size-5" />
               <span className="text-sm font-semibold">MedCheck</span>
             </Link>
           </div>

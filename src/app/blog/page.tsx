@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ShieldCheck, Newspaper } from "lucide-react";
+import Image from "next/image";
+import { Newspaper } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 
 export default function BlogPage() {
@@ -8,7 +9,7 @@ export default function BlogPage() {
       <header className="border-b border-border/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 sm:px-10">
           <Link href="/" className="flex items-center gap-2">
-            <ShieldCheck className="size-6 text-primary" />
+            <Image src="/brand/icon-color.png" alt="" width={24} height={24} className="size-6" />
             <span className="font-[family-name:var(--font-display)] text-lg font-semibold">MedCheck</span>
           </Link>
         </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ShieldCheck, ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +10,7 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-screen w-full items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-2">
-          <ShieldCheck className="size-6 text-primary" />
+          <Image src="/brand/icon-color.png" alt="" width={24} height={24} className="size-6" />
           <span className="text-lg font-semibold">MedCheck</span>
         </div>
         <h2 className="text-xl font-semibold">Recuperar acesso</h2>

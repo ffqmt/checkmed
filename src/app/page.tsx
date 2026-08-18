@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import {
   ShieldCheck,
@@ -47,7 +48,7 @@ export default async function Home() {
       <header className="sticky top-0 z-10 border-b border-border/60 bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 sm:px-10">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="size-6 text-primary" />
+            <Image src="/brand/icon-color.png" alt="" width={24} height={24} className="size-6" priority />
             <span className="font-[family-name:var(--font-display)] text-lg font-semibold">MedCheck</span>
           </div>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground sm:flex">

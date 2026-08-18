@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import Image from "next/image";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
@@ -8,7 +8,7 @@ export default function LoginPage() {
       <div className="relative hidden w-1/2 flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
         <div className="flex items-center gap-2">
           <div className="flex size-9 items-center justify-center rounded-lg bg-white/10">
-            <ShieldCheck className="size-5" />
+            <Image src="/brand/icon-white.png" alt="" width={22} height={22} className="size-[22px]" />
           </div>
           <span className="text-lg font-semibold">MedCheck</span>
         </div>
@@ -29,7 +29,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm">
           <div className="mb-8 flex flex-col gap-1 lg:hidden">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="size-6 text-primary" />
+              <Image src="/brand/icon-color.png" alt="" width={24} height={24} className="size-6" />
               <span className="text-lg font-semibold">MedCheck</span>
             </div>
           </div>
