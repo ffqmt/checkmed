@@ -127,6 +127,14 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
   const { buffer, mimeType } =
     file.mimeType === "application/pdf" ? file : await ensureImageFitsClaudeLimit(file.buffer, file.mimeType);
 
+  // The model has no built-in notion of "today" — without this, it judges
+  // date plausibility against its own training-time assumptions, which
+  // silently drifts wrong the moment real usage moves past that point (e.g.
+  // flagging a document submitted today as suspiciously "future-dated").
+  // Confirmed live: a real submission made in August 2026 got flagged as
+  // implausible for being dated August 2026, purely from this missing context.
+  const todayIso = new Date().toISOString().slice(0, 10);
+
   const response = await getClient().messages.parse({
     model: "claude-sonnet-5",
     max_tokens: 4096,
@@ -136,7 +144,10 @@ export async function extractWithClaudeVision(file: { buffer: Buffer; mimeType: 
         role: "user",
         content: [
           documentContentBlock(buffer, mimeType),
-          { type: "text", text: "Leia este atestado médico e devolva os campos estruturados." },
+          {
+            type: "text",
+            text: `A data de hoje é ${todayIso}. Leia este atestado médico e devolva os campos estruturados. Ao avaliar se alguma data do documento parece implausível (muito distante no passado, ou no futuro), use a data de hoje acima como referência real — não a sua própria suposição de "data atual".`,
+          },
         ],
       },
     ],

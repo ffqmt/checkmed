@@ -111,7 +111,7 @@ export class FormatOnlyDoctorRegistryService implements DoctorRegistryService {
       status: "INCONCLUSIVE",
       rawResponse: { reason: "no_registry_integration", crm, uf },
       notes:
-        "O CRM informado tem formato válido, mas ainda não há integração com um registro oficial (CFM/CRM) para confirmar se este profissional está de fato registrado com este número. Nenhuma confirmação real foi feita.",
+        "O CRM informado tem formato válido, mas este profissional ainda não consta no nosso cadastro de médicos confirmados junto ao CFM. Essa cobertura está sendo ampliada de forma contínua, estado por estado — nenhuma confirmação foi feita para este registro específico até o momento.",
     };
   }
 }
