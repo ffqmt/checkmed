@@ -1056,3 +1056,28 @@ model DataPrivacyRequest {
   @@index([organizationId])
   @@map("data_privacy_requests")
 }
+
+// ============================================================================
+// SALES / MARKETING SITE
+// ============================================================================
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CLOSED
+}
+
+/** Submitted from the public institutional page (/) — not tied to an Organization, since a lead is a prospect, not yet a customer with an account in the system. */
+model Lead {
+  id          String     @id @default(cuid())
+  companyName String
+  contactName String
+  email       String
+  phone       String?
+  message     String?
+  status      LeadStatus @default(NEW)
+  createdAt   DateTime   @default(now())
+
+  @@map("leads")
+}
