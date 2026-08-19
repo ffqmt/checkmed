@@ -22,12 +22,20 @@ docs/
     checklist-avaliacao.md  O que avaliar em cada sinal, e o que cada resultado realmente significa
     casos-de-estudo/        Casos reais documentados à medida que acontecem — vazio até o primeiro caso real
   vendas/
-    playbook-comercial.md   Abordagem por tipo de cliente, links para os materiais de apresentação
-    niveis-de-cliente.md    Segmentação de cliente e o que muda em cada nível
-    precificacao.md         Onde a precificação vive hoje e como evolui
+    playbook-comercial.md    Abordagem por tipo de cliente, links para os materiais de apresentação
+    niveis-de-cliente.md     Segmentação de cliente, gatilho emocional real de cada perfil, e qual post do blog usar em cada etapa
+    gatilhos-e-objecoes.md   Os três medos que realmente vendem, e como responder às objeções mais comuns sem ser defensivo
+    precificacao.md          Onde a precificação vive hoje e como evolui
   decisoes/
-    log-de-decisoes.md      Registro cronológico das decisões de produto/negócio, com o porquê
+    log-de-decisoes.md               Registro cronológico das decisões de produto/negócio, com o porquê
+    comparativo-provedores-cobranca.md  Por que Asaas — comparado de verdade contra Vindi/Pagar.me/Iugu/Stripe
+  acoes-externas-pendentes.md  Contas/chaves que só a Fernanda pode criar (Asaas, Inngest, Upstash, Sentry)
 ```
+
+O blog (`/blog` no app, conteúdo em `src/app/blog/posts.tsx`) tem hoje 18
+posts reais — 3 explicativos sobre regulamentação (CFM, Lei 605, LGPD) e 15
+voltados a gerar identificação e responder objeção de compra, mapeados por
+perfil de cliente em `vendas/niveis-de-cliente.md`.
 
 ## Regra simples para manter isso vivo
 

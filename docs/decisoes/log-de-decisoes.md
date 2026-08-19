@@ -6,6 +6,25 @@ Mais recente no topo.
 
 ---
 
+## 2026-08-19 — Cobrança: decisão do Asaas revisitada e confirmada
+
+**Decisão:** manter Asaas, depois de comparar de verdade contra Vindi,
+Pagar.me, Iugu e Stripe — não só assumir que a primeira escolha estava
+certa.
+
+**Por quê:** Asaas é o único sem mensalidade fixa de plataforma (só cobra
+por transação recebida) entre as opções pesquisadas — relevante numa fase
+onde o volume ainda está sendo validado. Vindi tem mensalidade mínima de
+~R$299/mês, um custo fixo real antes de qualquer receita. Stripe foi
+descartado por um motivo concreto, não só preferência: PIX para empresas
+sediadas no Brasil está disponível **só por convite** hoje, o que
+inviabiliza pra maioria dos clientes reais da MedCheck.
+
+Ver `comparativo-provedores-cobranca.md` para a pesquisa completa, incluindo
+quando essa decisão merece ser revisitada.
+
+---
+
 ## 2026-08-18 — Cobrança: Asaas, não Stripe
 
 **Decisão:** usar Asaas (plataforma brasileira de cobrança recorrente) em

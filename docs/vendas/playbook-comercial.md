@@ -44,7 +44,16 @@ Sempre sair com um próximo passo concreto marcado — nunca "vou mandar a
 proposta e fico no aguardo". A sugestão padrão é um piloto sem compromisso
 de contrato longo, rodando com o volume real do cliente.
 
+## O blog como ferramenta de venda, não só conteúdo
+
+18 posts reais em `/blog` — 3 explicativos sobre regulamentação e 15 pensados
+para gerar identificação emocional e responder objeção antes dela aparecer.
+Cada post em `niveis-de-cliente.md` está mapeado ao perfil de cliente onde
+funciona melhor — usar como material de acompanhamento entre a demonstração
+e o fechamento, não só como conteúdo de blog passivo.
+
 ## Ver também
 
-- `niveis-de-cliente.md` — como adaptar a abordagem por porte/perfil de cliente
+- `niveis-de-cliente.md` — como adaptar a abordagem por porte/perfil de cliente, e qual post usar em cada um
+- `gatilhos-e-objecoes.md` — os três medos reais por trás da decisão de compra, e como responder objeções sem ser defensivo
 - `precificacao.md` — onde os números de referência vivem hoje

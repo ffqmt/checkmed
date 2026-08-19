@@ -349,6 +349,10 @@ cobrança recorrente padrão do mercado brasileiro (boleto/PIX-first, onboarding
 nativo por CNPJ), escolhida em vez do Stripe puro justamente por isso: todo
 cliente do MedCheck é uma empresa brasileira.
 
+A escolha do Asaas foi comparada de verdade contra Vindi, Pagar.me, Iugu e
+Stripe — ver `docs/decisoes/comparativo-provedores-cobranca.md` para a
+pesquisa completa e quando vale reconsiderar.
+
 A mensalidade-base e o valor variável por atestado são cobrados de formas
 diferentes, porque a API do Asaas trata os dois casos de forma diferente:
 

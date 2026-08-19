@@ -42,6 +42,18 @@ aparece no atestado".
 Lei 605/49 — não deve ser tratado como "fora de rede" ou menos confiável só
 por não ser particular.
 
+**CLT, Art. 482** — Lista as hipóteses que podem justificar demissão por
+justa causa, incluindo falsidade documental. Não torna a justa causa
+automática diante de suspeita — normalmente exige prova consistente e
+proporcionalidade. Ver post "Quando a demissão por justa causa por atestado
+falso pode (e não pode) acontecer".
+
+**16º dia / responsabilidade do INSS** — A partir do 16º dia consecutivo de
+afastamento por doença, a responsabilidade de remuneração migra da empresa
+para o INSS, mediante perícia própria. Os primeiros 15 dias continuam sob
+responsabilidade e verificação da empresa. Ver post "O afastamento que vira
+dor de cabeça".
+
 ## Termos do produto
 
 **Score de risco** — Número de 0 a 100 calculado deterministicamente (sem
