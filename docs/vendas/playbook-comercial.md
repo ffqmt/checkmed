@@ -2,6 +2,10 @@
 
 ## Materiais de apresentação
 
+- **Slides para apresentar ao vivo** (`/ops/documentacao/apresentacao`) —
+  navegável, colorido, com botão de tela cheia; abra direto na reunião. Os
+  slides marcados "só para quem apresenta" indicam onde fazer a
+  demonstração ao vivo.
 - **Roteiro de abordagem** ([roteiro-de-abordagem.md](roteiro-de-abordagem.md)) — falas prontas por
   fase da reunião, incluindo as perguntas que criam o gatilho de necessidade;
   acessível a qualquer usuário interno em `/ops/documentacao`.
@@ -58,6 +62,8 @@ e o fechamento, não só como conteúdo de blog passivo.
 ## Ver também
 
 - [roteiro-de-abordagem.md](roteiro-de-abordagem.md) — as falas, em ordem, para cada fase da reunião
+- [psicologia-da-venda.md](psicologia-da-venda.md) — o porquê de cada fala funcionar, mapeado por etapa
+- [personas-de-cliente.md](personas-de-cliente.md) — quatro clientes fictícios pra ouvir a voz do perfil antes da reunião
 - [niveis-de-cliente.md](niveis-de-cliente.md) — como adaptar a abordagem por porte/perfil de cliente, e qual post usar em cada um
 - [gatilhos-e-objecoes.md](gatilhos-e-objecoes.md) — os três medos reais por trás da decisão de compra, e como responder objeções sem ser defensivo
 - [precificacao.md](precificacao.md) — onde os números de referência vivem hoje

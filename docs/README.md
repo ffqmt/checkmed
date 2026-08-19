@@ -11,6 +11,9 @@ aqui — não só na conversa onde foi decidida.
 
 Qualquer usuário interno (analista, supervisor, admin) lê tudo isso dentro
 do próprio app, sem precisar acesso ao repositório: **`/ops/documentacao`**.
+A mesma tela tem um material de apresentação em formato de slide
+(`/ops/documentacao/apresentacao`), pronto pra abrir em tela cheia numa
+reunião de verdade.
 
 ## Como está organizada
 
@@ -24,10 +27,12 @@ docs/
     manual-do-analista.md   Como operar a fila, revisar um caso e emitir um parecer
     checklist-avaliacao.md  O que avaliar em cada sinal, e o que cada resultado realmente significa
     roteiros-de-contato.md  Falas prontas por telefone/WhatsApp com clínica/instituição, e as perguntas certas
-    casos-de-estudo/        Casos reais documentados à medida que acontecem — vazio até o primeiro caso real
+    casos-de-estudo/        3 casos simulados (claramente marcados) para estudar o método — real quando o primeiro acontecer
   vendas/
     playbook-comercial.md    Abordagem por tipo de cliente, links para os materiais de apresentação
     roteiro-de-abordagem.md  Falas prontas por fase da reunião, e as perguntas que criam o gatilho de necessidade
+    psicologia-da-venda.md   O princípio psicológico por trás de cada fala, mapeado por etapa da reunião
+    personas-de-cliente.md   Quatro clientes fictícios (mas realistas) — a voz de cada perfil antes da reunião
     niveis-de-cliente.md     Segmentação de cliente, gatilho emocional real de cada perfil, e qual post do blog usar em cada etapa
     gatilhos-e-objecoes.md   Os três medos que realmente vendem, e como responder às objeções mais comuns sem ser defensivo
     precificacao.md          Onde a precificação vive hoje e como evolui

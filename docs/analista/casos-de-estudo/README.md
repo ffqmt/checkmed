@@ -1,10 +1,12 @@
 # Casos de estudo
 
-Esta pasta ainda não tem nenhum caso real documentado — vai sendo
-preenchida à medida que casos reais e instrutivos acontecerem. Não crie um
-caso fictício aqui só para preencher o espaço; um caso de estudo só tem
-valor se for real (com os dados sensíveis removidos/mascarados) ou
-claramente marcado como hipotético desde o título.
+Esta pasta ainda não tem nenhum caso **real** documentado. Os três casos
+aqui hoje são simulados — cada um com **"[Caso simulado]"** já no título,
+justamente para nunca serem confundidos com um caso real. Servem pra
+estudar o método de leitura de sinais antes do primeiro caso de verdade
+acontecer; quando ele acontecer, documente-o do lado dos simulados, sempre
+com os dados sensíveis removidos/mascarados. Não crie um caso fictício
+*sem* marcar como tal — a regra abaixo continua valendo.
 
 ## Quando vale documentar um caso
 
