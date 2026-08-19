@@ -321,22 +321,35 @@ export async function runCertificateValidationWorkflow(requestId: string): Promi
   await recordTimelineEvent({ requestId, eventType: "QR_CODE_VERIFICATION_COMPLETED", title: "Verificação de QR Code concluída", isClientVisible: false });
 
   // 8. Risk scoring ------------------------------------------------------------
-  const risk = riskScoringService.score({
-    extractedData: {
-      absenceDays: structured.absenceDays,
-      certificateIssueDate: structured.certificateIssueDate,
-      absenceStartDate: structured.absenceStartDate,
-      absenceEndDate: structured.absenceEndDate,
+  // No row = today's global defaults, unchanged — see OrganizationDecisionPolicy.
+  const decisionPolicy = await prisma.organizationDecisionPolicy.findUnique({ where: { organizationId: request.organizationId } });
+  const risk = riskScoringService.score(
+    {
+      extractedData: {
+        absenceDays: structured.absenceDays,
+        certificateIssueDate: structured.certificateIssueDate,
+        absenceStartDate: structured.absenceStartDate,
+        absenceEndDate: structured.absenceEndDate,
+      },
+      ocrConfidence: ocrResult.confidence,
+      cidValidation,
+      doctorVerification: { status: doctorResult.status, matchScore: doctorResult.matchScore },
+      clinicVerification: { status: clinicResult.status, matchScore: clinicResult.matchScore },
+      qrCodeVerification: { status: qrOutcome.status, matchScore: qrOutcome.matchScore },
+      technicalAnalysis: findings,
+      similarityFindings,
+      priorInconsistentMatch,
     },
-    ocrConfidence: ocrResult.confidence,
-    cidValidation,
-    doctorVerification: { status: doctorResult.status, matchScore: doctorResult.matchScore },
-    clinicVerification: { status: clinicResult.status, matchScore: clinicResult.matchScore },
-    qrCodeVerification: { status: qrOutcome.status, matchScore: qrOutcome.matchScore },
-    technicalAnalysis: findings,
-    similarityFindings,
-    priorInconsistentMatch,
-  });
+    decisionPolicy
+      ? {
+          autoValidateMinScore: decisionPolicy.autoValidateMinScore,
+          humanReviewMinScore: decisionPolicy.humanReviewMinScore,
+          clinicContactMaxScore: decisionPolicy.clinicContactMaxScore,
+          supervisorReviewMaxScore: decisionPolicy.supervisorReviewMaxScore,
+          requireDoctorValidatedForAutoValidate: decisionPolicy.requireDoctorValidatedForAutoValidate,
+        }
+      : undefined,
+  );
 
   const riskAnalysis = await prisma.riskAnalysis.create({
     data: {

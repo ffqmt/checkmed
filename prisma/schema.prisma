@@ -332,6 +332,15 @@ model Organization {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
+  // Billing — see "Arquitetura de cobrança" in README. Base fee/per-unit are
+  // snapshotted onto the organization (not read live from a shared price
+  // list) so a later change to the standard tiers never silently changes
+  // what an existing client is actually contracted to pay.
+  billingPlanTier      BillingPlanTier?
+  billingBaseFeeCents  Int?
+  billingPerUnitCents  Int?
+  asaasCustomerId      String?
+
   users               User[]
   requests            MedicalCertificateRequest[]
   whatsAppIntegration WhatsAppIntegration?
@@ -343,8 +352,117 @@ model Organization {
   auditLogs           AuditLog[]
   dataRetentionPolicy DataRetentionPolicy?
   dataPrivacyRequests DataPrivacyRequest[]
+  subscription        Subscription?
+  invoices            Invoice[]
+  usageRecords        UsageRecord[]
+  decisionPolicy      OrganizationDecisionPolicy?
 
   @@map("organizations")
+}
+
+enum BillingPlanTier {
+  STARTER
+  GROWTH
+  BUSINESS
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum InvoiceStatus {
+  PENDING
+  CONFIRMED
+  RECEIVED
+  OVERDUE
+  CANCELED
+}
+
+/**
+ * Tracks the Asaas subscription that bills the fixed monthly base fee only
+ * — Asaas subscriptions are fixed-recurring-amount by design, they can't
+ * bill a variable usage total. The variable per-atestado portion is billed
+ * separately every month as a one-off charge (see Invoice below), summed
+ * from real UsageRecord rows, not estimated.
+ */
+model Subscription {
+  id                  String             @id @default(cuid())
+  organizationId      String             @unique
+  organization        Organization       @relation(fields: [organizationId], references: [id])
+  asaasSubscriptionId String?            @unique
+  status              SubscriptionStatus @default(PENDING)
+  billingType         String
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+/** One row per calendar month per organization — the variable-usage charge, computed from real UsageRecord rows at generation time, never estimated. */
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  asaasPaymentId String?       @unique
+  referenceMonth DateTime
+  baseFeeCents   Int
+  usageUnits     Int
+  usageCents     Int
+  totalCents     Int
+  status         InvoiceStatus @default(PENDING)
+  dueDate        DateTime?
+  paidAt         DateTime?
+  invoiceUrl     String?
+  createdAt      DateTime      @default(now())
+
+  @@unique([organizationId, referenceMonth])
+  @@index([organizationId])
+  @@map("invoices")
+}
+
+/** The metering ledger — one row per certificate request actually processed. The monthly Invoice total is always a COUNT of these rows × the org's per-unit price, so a client can audit exactly what was billed, not just trust a number. */
+model UsageRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  requestId      String   @unique
+  billedAt       DateTime @default(now())
+
+  @@index([organizationId, billedAt])
+  @@map("usage_records")
+}
+
+/**
+ * Per-organization override of the recommendation thresholds in
+ * risk-scoring.service.ts — deliberately NOT exposing the individual signal
+ * weights (how much a divergent CRM subtracts, etc.), only where the final
+ * score lands you (AUTO_VALIDATE / HUMAN_REVIEW / CLINIC_CONTACT /
+ * SUPERVISOR_REVIEW). Letting a client tune the weights would let them
+ * quietly game their own risk calibration; tuning thresholds only changes
+ * how cautious the system is, which is a legitimate per-client knob (e.g. a
+ * client who mostly gets SUS-network certificates may reasonably want a
+ * lower bar for AUTO_VALIDATE than one handling many out-of-network claims).
+ * No row for an organization = today's global defaults, unchanged.
+ */
+model OrganizationDecisionPolicy {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  autoValidateMinScore                  Int     @default(85)
+  humanReviewMinScore                   Int     @default(60)
+  clinicContactMaxScore                 Int     @default(60)
+  supervisorReviewMaxScore              Int     @default(35)
+  requireDoctorValidatedForAutoValidate Boolean @default(true)
+
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+
+  @@map("organization_decision_policies")
 }
 
 model User {
@@ -570,6 +688,34 @@ model DoctorVerification {
  * be superseded by the official CFM web service (Resolução CFM 2.129/15) or
  * a paid provider once volume justifies the cost.
  */
+/**
+ * CNES (Cadastro Nacional de Estabelecimentos de Saúde) cache — same pattern
+ * as VerifiedDoctor: no free single-lookup API exists, but the Ministério
+ * da Saúde publishes the full national registry as a bulk JSON download
+ * (dadosabertos.saude.gov.br), refreshed daily. Imported via
+ * scripts/import-verified-clinics.ts rather than queried live.
+ */
+model VerifiedClinic {
+  id                String   @id @default(cuid())
+  cnesCode          String   @unique
+  cnpj              String?
+  legalName         String?
+  tradeName         String?
+  address           String?
+  phone             String?
+  email             String?
+  ibgeCityCode      String?
+  uf                String?
+  /** Derived from CO_MOTIVO_DESAB in the source file: "ATIVO" when empty, "DESABILITADO" when a deactivation reason code is present — the source gives no textual meaning for the code itself, so nothing beyond that binary is inferred. */
+  operationalStatus String?
+  sourceUrl         String
+  importedAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([cnpj])
+  @@map("verified_clinics")
+}
+
 model VerifiedDoctor {
   id                 String    @id @default(cuid())
   crm                String

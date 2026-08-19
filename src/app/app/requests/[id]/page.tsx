@@ -15,6 +15,8 @@ import { DocumentViewer } from "@/components/shared/document-viewer";
 import { VerificationChecklist, type ChecklistItem } from "@/components/shared/verification-checklist";
 import { Field } from "@/components/shared/field";
 import { EvidenceFileLink } from "@/components/shared/evidence-file-link";
+import { PrintReportButton } from "@/components/shared/print-report-button";
+import { FinalReportPrintHeader } from "@/components/shared/final-report-print-header";
 import { FileText, ScanSearch, Phone } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import {
@@ -283,27 +285,38 @@ export default async function ClientRequestDetailPage({ params }: { params: Prom
 
         <TabsContent value="report">
           {request.finalReport ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{FINAL_RESULT_LABELS[request.finalReport.result]}</CardTitle>
-                  <RiskBadge level={request.finalReport.riskLevel} />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <p>{request.finalReport.executiveSummary}</p>
-                {request.finalReport.clientVisibleNotes && (
-                  <div className="rounded-lg bg-muted/50 p-3">{request.finalReport.clientVisibleNotes}</div>
-                )}
-                {request.finalReport.limitations && (
-                  <div>
-                    <p className="font-medium">Limitações</p>
-                    <p className="text-muted-foreground">{request.finalReport.limitations}</p>
+            <div id="printable-report">
+              <FinalReportPrintHeader
+                employeeName={request.employeeName}
+                employeeDocumentMasked={request.employeeDocumentMasked}
+                requestId={request.id}
+                receivedByCompanyAt={request.receivedByCompanyAt}
+              />
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base">{FINAL_RESULT_LABELS[request.finalReport.result]}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <RiskBadge level={request.finalReport.riskLevel} />
+                      <PrintReportButton />
+                    </div>
                   </div>
-                )}
-                <p className="text-xs text-muted-foreground">Emitido em {formatDateTime(request.finalReport.generatedAt)}</p>
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm">
+                  <p>{request.finalReport.executiveSummary}</p>
+                  {request.finalReport.clientVisibleNotes && (
+                    <div className="rounded-lg bg-muted/50 p-3">{request.finalReport.clientVisibleNotes}</div>
+                  )}
+                  {request.finalReport.limitations && (
+                    <div>
+                      <p className="font-medium">Limitações</p>
+                      <p className="text-muted-foreground">{request.finalReport.limitations}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">Emitido em {formatDateTime(request.finalReport.generatedAt)}</p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <EmptyState icon={FileText} title="Parecer ainda não disponível" description="O parecer final será exibido aqui assim que a análise for concluída." />
           )}

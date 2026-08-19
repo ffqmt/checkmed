@@ -351,6 +351,14 @@ export const WHATSAPP_TEMPLATES: Record<string, string> = {
     "A solicitação #{{requestId}} foi recebida pela MedCheck e entrou em processamento. Notificaremos você a cada etapa importante.",
   completed:
     "A análise da solicitação #{{requestId}} foi concluída. Confira o parecer no painel MedCheck.",
+  // For the Central de Mensagens "Enviar modelo" fallback, when an analyst
+  // needs to restart a conversation outside Meta's 24h free-form window —
+  // NOT wired to any automated notify() event. Like the other two, this
+  // exact name must exist and be approved in Meta Business Manager before
+  // it will actually send; until then Meta rejects it with a clear
+  // "template not found" error rather than anything faked here.
+  reengajamento:
+    "Olá! Este é um contato da MedCheck sobre uma solicitação em andamento. Responda esta mensagem para que possamos continuar o atendimento.",
 };
 
 function renderTemplate(templateName: string, variables: Record<string, string>) {

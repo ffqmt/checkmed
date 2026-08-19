@@ -144,3 +144,26 @@
     border-radius: 999px;
   }
 }
+
+/**
+ * "Imprimir parecer" support — the standard visibility-hide trick: on print,
+ * everything is hidden except #printable-report, which is pulled out to fill
+ * the page. Works regardless of surrounding layout (sidebar, tabs, nav) since
+ * nothing about the app chrome needs to know this exists.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-report,
+  #printable-report * {
+    visibility: visible;
+  }
+  #printable-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0.5in;
+  }
+}

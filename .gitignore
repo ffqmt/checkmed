@@ -49,3 +49,6 @@ next-env.d.ts
 dados.txt
 dados*.txt
 /data/cfm-raw/
+
+# bulk CNES dataset for scripts/import-verified-clinics.ts (~640MB, re-downloadable — see script's usage message for the source URL)
+/data/cnes-raw/

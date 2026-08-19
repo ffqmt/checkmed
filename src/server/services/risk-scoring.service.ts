@@ -1,8 +1,25 @@
 import type { RiskAlertType, AlertSeverity } from "@prisma/client";
 import type { RiskScoringInput, RiskScoringResult } from "./types";
 
+/** Per-organization override of the recommendation thresholds — see OrganizationDecisionPolicy in schema.prisma for why only thresholds (not signal weights) are configurable. Omitted fields fall back to today's global default for that threshold. */
+export type DecisionPolicy = {
+  autoValidateMinScore?: number;
+  humanReviewMinScore?: number;
+  clinicContactMaxScore?: number;
+  supervisorReviewMaxScore?: number;
+  requireDoctorValidatedForAutoValidate?: boolean;
+};
+
+const DEFAULT_POLICY: Required<DecisionPolicy> = {
+  autoValidateMinScore: 85,
+  humanReviewMinScore: 60,
+  clinicContactMaxScore: 60,
+  supervisorReviewMaxScore: 35,
+  requireDoctorValidatedForAutoValidate: true,
+};
+
 export interface RiskScoringService {
-  score(input: RiskScoringInput): RiskScoringResult;
+  score(input: RiskScoringInput, policy?: DecisionPolicy): RiskScoringResult;
 }
 
 type Alert = {
@@ -33,7 +50,8 @@ function riskLevelFromScore(score: number): RiskScoringResult["riskLevel"] {
  * be made configurable per organization later.
  */
 export class DefaultRiskScoringService implements RiskScoringService {
-  score(input: RiskScoringInput): RiskScoringResult {
+  score(input: RiskScoringInput, policyOverride?: DecisionPolicy): RiskScoringResult {
+    const policy: Required<DecisionPolicy> = { ...DEFAULT_POLICY, ...policyOverride };
     let score = 55;
     const positives: string[] = [];
     const negatives: string[] = [];
@@ -334,10 +352,10 @@ export class DefaultRiskScoringService implements RiskScoringService {
     const hasHigh = alerts.some((a) => a.severity === "HIGH");
 
     let recommendation: RiskScoringResult["recommendation"];
-    if (hasCritical || score < 35 || (doctor?.status === "DIVERGENT" && (doctor.matchScore ?? 100) < 40)) {
+    if (hasCritical || score < policy.supervisorReviewMaxScore || (doctor?.status === "DIVERGENT" && (doctor.matchScore ?? 100) < 40)) {
       recommendation = "SUPERVISOR_REVIEW";
     } else if (
-      score < 60 ||
+      score < policy.clinicContactMaxScore ||
       qr?.status === "INVALID" ||
       qr?.status === "DOMAIN_SUSPICIOUS" ||
       clinic?.status === "DIVERGENT" ||
@@ -347,15 +365,15 @@ export class DefaultRiskScoringService implements RiskScoringService {
     ) {
       recommendation = "CLINIC_CONTACT";
     } else if (
-      (score >= 60 && score <= 85) ||
+      (score >= policy.humanReviewMinScore && score <= policy.autoValidateMinScore) ||
       (input.ocrConfidence !== null && input.ocrConfidence !== undefined && input.ocrConfidence < 85) ||
       clinic?.status === "NOT_FOUND"
     ) {
       recommendation = "HUMAN_REVIEW";
     } else if (
-      doctor?.status === "VALIDATED" &&
+      (!policy.requireDoctorValidatedForAutoValidate || doctor?.status === "VALIDATED") &&
       (clinic?.status === "VALIDATED" || qr?.status === "VALID") &&
-      score > 85 &&
+      score > policy.autoValidateMinScore &&
       !hasHigh &&
       !hasCritical
     ) {

@@ -8,8 +8,9 @@ import { namesLooselyMatch } from "@/lib/fuzzy-match";
  * key, no rate-limit contract needed. Confirms the CNPJ exists, is
  * registered as ATIVA (active), and that the razão social loosely matches
  * the clinic name the document declared. Does not verify CNES (health
- * facility registry) — no equivalent free/public single-lookup API was
- * found; that remains a documented gap, not silently assumed correct.
+ * facility registry) itself — no free/public single-lookup API exists for
+ * that — but the caller (clinic-registry.service.ts) layers a CNES check
+ * from a periodically-imported bulk dataset on top of this result.
  */
 type BrasilApiCnpjResponse = {
   cnpj: string;

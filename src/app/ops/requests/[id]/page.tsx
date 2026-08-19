@@ -19,6 +19,8 @@ import { WhatsAppPanel } from "@/components/requests/whatsapp-panel";
 import { getWhatsAppMessages } from "@/server/actions/whatsapp";
 import { FinalReportForm } from "@/components/requests/final-report-form";
 import { ApproveReportButton } from "@/components/requests/approve-report-button";
+import { PrintReportButton } from "@/components/shared/print-report-button";
+import { FinalReportPrintHeader } from "@/components/shared/final-report-print-header";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { VERIFICATION_STATUS_LABELS, QR_STATUS_LABELS, ALERT_SEVERITY_LABELS, FINAL_RESULT_LABELS, PRIORITY_LABELS, CID_REDACTED_LABEL } from "@/lib/constants";
 import { permissions } from "@/lib/rbac";
@@ -584,31 +586,42 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
         {/* Final report */}
         <TabsContent value="report" className="space-y-4">
           {request.finalReport ? (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{FINAL_RESULT_LABELS[request.finalReport.result]}</CardTitle>
-                  {!request.finalReport.approvedAt && canApprove && <ApproveReportButton reportId={request.finalReport.id} />}
-                  {!request.finalReport.approvedAt && !canApprove && <Badge variant="warning">Aguardando aprovação</Badge>}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <p>{request.finalReport.executiveSummary}</p>
-                {request.finalReport.limitations && (
-                  <div>
-                    <p className="font-medium">Limitações</p>
-                    <p className="text-muted-foreground">{request.finalReport.limitations}</p>
+            <div id="printable-report">
+              <FinalReportPrintHeader
+                employeeName={request.employeeName}
+                employeeDocumentMasked={request.employeeDocumentMasked}
+                requestId={request.id}
+                receivedByCompanyAt={request.receivedByCompanyAt}
+              />
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-base">{FINAL_RESULT_LABELS[request.finalReport.result]}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <PrintReportButton />
+                      {!request.finalReport.approvedAt && canApprove && <ApproveReportButton reportId={request.finalReport.id} />}
+                      {!request.finalReport.approvedAt && !canApprove && <Badge variant="warning">Aguardando aprovação</Badge>}
+                    </div>
                   </div>
-                )}
-                {request.finalReport.internalNotes && (
-                  <div className="rounded-lg bg-muted/50 p-3">{request.finalReport.internalNotes}</div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Emitido em {formatDateTime(request.finalReport.generatedAt)}
-                  {request.finalReport.approvedAt && ` · Aprovado em ${formatDateTime(request.finalReport.approvedAt)}`}
-                </p>
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p>{request.finalReport.executiveSummary}</p>
+                  {request.finalReport.limitations && (
+                    <div>
+                      <p className="font-medium">Limitações</p>
+                      <p className="text-muted-foreground">{request.finalReport.limitations}</p>
+                    </div>
+                  )}
+                  {request.finalReport.internalNotes && (
+                    <div className="rounded-lg bg-muted/50 p-3 print:hidden">{request.finalReport.internalNotes}</div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Emitido em {formatDateTime(request.finalReport.generatedAt)}
+                    {request.finalReport.approvedAt && ` · Aprovado em ${formatDateTime(request.finalReport.approvedAt)}`}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           ) : canReview ? (
             <Card>
               <CardHeader>

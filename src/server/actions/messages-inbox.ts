@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { recordAuditLog } from "@/server/audit";
 import { permissions } from "@/lib/rbac";
 import { canonicalPhoneKey, phoneNumberVariants } from "@/lib/phone";
-import { whatsAppService } from "@/server/services/whatsapp.service";
+import { whatsAppService, WHATSAPP_TEMPLATES } from "@/server/services/whatsapp.service";
+import { isOutsideEngagementWindow } from "@/lib/whatsapp-errors";
 import { storageAdapter, buildWhatsAppAttachmentPath, type SignedUploadTarget } from "@/server/services/storage.service";
 import { STORAGE_BUCKETS } from "@/lib/supabase";
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/validations/certificate-request";
@@ -185,6 +186,9 @@ export async function getContactThread(canonicalKey: string) {
       .find((c) => c !== null) ?? null;
   const contactLabel = resolveContactLabel({ clinicName, orgName: last?.organization.name ?? null, canonicalKey });
 
+  const lastInbound = messagesNewestFirst.find((m) => m.direction === "INBOUND");
+  const lastInboundAt = lastInbound?.createdAt ?? null;
+
   return {
     messages: messagesWithAttachments,
     contactLabel,
@@ -192,7 +196,32 @@ export async function getContactThread(canonicalKey: string) {
     // Whoever we most recently talked to this contact as — no picker, just visible before hitting send.
     defaultOrganization: last ? last.organization : null,
     lastKnownNumber,
+    // Meta only allows free-form text within 24h of the contact's last
+    // inbound message. Outside that window a free-form send always fails
+    // with a "re-engagement" error — surfaced here so the UI can offer the
+    // template fallback before the analyst hits send, not just after.
+    outsideEngagementWindow: isOutsideEngagementWindow(lastInboundAt),
+    lastInboundAt,
   };
+}
+
+/** Restarts a conversation outside the 24h free-form window — the only kind of message Meta accepts at that point. Needs the named template already approved in Meta Business Manager (see WHATSAPP_TEMPLATES in whatsapp.service.ts); until then Meta rejects it with its own clear error. */
+export async function sendTemplateToContact(organizationId: string, toNumber: string, templateName: string) {
+  const session = await requireInternalAccess();
+  if (!(templateName in WHATSAPP_TEMPLATES)) return { error: "Modelo desconhecido." };
+
+  await whatsAppService.sendTemplateMessage(organizationId, toNumber, templateName, {}, undefined, session.user.id);
+
+  await recordAuditLog({
+    organizationId,
+    userId: session.user.id,
+    action: "WHATSAPP_MESSAGE_SENT",
+    entityType: "WhatsAppMessage",
+    newData: { toNumber, templateName },
+  });
+
+  revalidatePath("/ops/messages");
+  return { success: true };
 }
 
 /** Total unread INBOUND messages across every contact — feeds the nav badge, polled independently of whichever thread (if any) is currently open. */

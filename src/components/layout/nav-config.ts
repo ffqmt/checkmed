@@ -17,6 +17,8 @@ import {
   Stethoscope,
   ShieldQuestion,
   UserPlus,
+  Receipt,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export type NavItem = {
@@ -44,12 +46,14 @@ export const internalNav: NavItem[] = [
 export const adminNav: NavItem[] = [
   { href: "/admin/leads", label: "Leads", icon: UserPlus },
   { href: "/admin/organizations", label: "Organizações", icon: Building2 },
+  { href: "/admin/billing", label: "Cobrança", icon: Receipt },
   { href: "/admin/users", label: "Usuários", icon: Users },
   { href: "/admin/doctor-registry", label: "Registro de médicos (CRM)", icon: Stethoscope },
   { href: "/admin/whatsapp", label: "Integração WhatsApp", icon: MessageSquare },
   { href: "/admin/api-keys", label: "API Keys", icon: KeyRound },
   { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
   { href: "/admin/retention", label: "Políticas de retenção", icon: Database },
+  { href: "/admin/decision-policy", label: "Regras de decisão", icon: SlidersHorizontal },
   { href: "/admin/data-privacy", label: "Solicitações de privacidade", icon: ShieldQuestion },
   { href: "/admin/audit-logs", label: "Logs de auditoria", icon: ScrollText },
 ];

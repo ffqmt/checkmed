@@ -8,7 +8,8 @@ import { recordAuditLog } from "@/server/audit";
 import { recordTimelineEvent } from "@/server/timeline";
 import { notificationService } from "@/server/services/notification.service";
 import { dispatchWebhookEvent } from "@/server/services/webhook-dispatch.service";
-import { runCertificateValidationWorkflow } from "@/server/services/workflow";
+import { recordUsage } from "@/server/services/billing.service";
+import { inngest } from "@/inngest/client";
 import { storageAdapter, buildStoragePath, type SignedUploadTarget } from "@/server/services/storage.service";
 import { STORAGE_BUCKETS } from "@/lib/supabase";
 import {
@@ -159,6 +160,10 @@ export async function finalizeCertificateRequestUpload(input: {
     },
   });
 
+  // Billable moment: a real document is attached and processing is about to
+  // start. Never blocks/fails the request — see recordUsage's own try/catch.
+  await recordUsage(request.organizationId, request.id);
+
   await recordTimelineEvent({
     requestId: request.id,
     userId: session.user.id,
@@ -198,18 +203,11 @@ export async function finalizeCertificateRequestUpload(input: {
     request.id,
   );
 
-  try {
-    await runCertificateValidationWorkflow(request.id);
-  } catch (error) {
-    console.error("Workflow failed", error);
-    await recordTimelineEvent({
-      requestId: request.id,
-      eventType: "STATUS_CHANGED",
-      title: "Falha no processamento automático",
-      description: (error as Error).message,
-      isClientVisible: false,
-    });
-  }
+  // Queued, not awaited — the pipeline now runs in its own Inngest
+  // execution instead of sharing this request's response window. The
+  // redirect below happens immediately; the request page shows RECEIVED
+  // and updates via the existing timeline/polling as processing catches up.
+  await inngest.send({ name: "certificate/uploaded", data: { requestId: request.id } });
 
   revalidatePath("/app/requests");
   redirect(`/app/requests/${request.id}`);

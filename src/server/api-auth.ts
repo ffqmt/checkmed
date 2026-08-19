@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkApiRateLimit } from "@/lib/rate-limit";
 
 export class ApiAuthError extends Error {
   status: number;
@@ -27,6 +28,11 @@ export async function authenticateApiRequest(request: NextRequest) {
 
   if (!apiKey || apiKey.status !== "ACTIVE") throw new ApiAuthError("Chave de API inválida ou revogada.");
   if (apiKey.expiresAt && apiKey.expiresAt < new Date()) throw new ApiAuthError("Chave de API expirada.");
+
+  const rateLimit = await checkApiRateLimit(apiKey.id);
+  if (!rateLimit.allowed) {
+    throw new ApiAuthError(`Limite de requisições excedido (${rateLimit.limit}/min). Aguarde antes de tentar novamente.`, 429);
+  }
 
   await prisma.apiKey.update({ where: { id: apiKey.id }, data: { lastUsedAt: new Date() } });
 

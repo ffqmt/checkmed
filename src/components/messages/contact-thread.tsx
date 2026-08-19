@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { AttachmentPreview } from "@/components/shared/attachment-preview";
 import { formatDateTime, outboundSenderLabel } from "@/lib/utils";
 import { WHATSAPP_STATUS_TONE } from "@/lib/constants";
-import { getContactThread, sendMessageToContact, beginMessageAttachmentUpload } from "@/server/actions/messages-inbox";
+import { getContactThread, sendMessageToContact, sendTemplateToContact, beginMessageAttachmentUpload } from "@/server/actions/messages-inbox";
 import { uploadFileToTarget, storagePathFromUploadTarget } from "@/lib/upload-client";
+import { explainWhatsAppError } from "@/lib/whatsapp-errors";
 
 type ThreadData = Awaited<ReturnType<typeof getContactThread>>;
 
@@ -84,6 +85,22 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
     if (isNearBottom()) setHasNewMessages(false);
   }
 
+  async function handleSendTemplate() {
+    if (!thread.defaultOrganization || !thread.lastKnownNumber) return;
+    setPending(true);
+    try {
+      const result = await sendTemplateToContact(thread.defaultOrganization.id, thread.lastKnownNumber, "reengajamento");
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Modelo de reengajamento enviado.");
+      await refresh();
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function handleSend() {
     if (!thread.defaultOrganization || !thread.lastKnownNumber) return;
     if (!message.trim() && !attachmentFile) return;
@@ -147,7 +164,7 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
             </div>
             {m.messageBody && <p className="mt-1">{m.messageBody}</p>}
             {m.attachmentUrl && <AttachmentPreview url={m.attachmentUrl} fileName={m.attachmentFileName} mimeType={m.attachmentMimeType} />}
-            {m.errorMessage && <p className="mt-1 text-xs text-status-warning">{m.errorMessage}</p>}
+            {m.errorMessage && <p className="mt-1 text-xs text-status-warning">{explainWhatsAppError(m.errorMessage)}</p>}
             <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</p>
           </div>
         ))}
@@ -171,7 +188,20 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
         <p className="text-xs text-muted-foreground">
           Enviando como: <span className="font-medium text-foreground">{thread.defaultOrganization?.name ?? "—"}</span>
         </p>
-        <Textarea placeholder="Mensagem" rows={2} value={message} onChange={(e) => setMessage(e.target.value)} />
+        {thread.outsideEngagementWindow && (
+          <div className="rounded-lg border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+            Essa conversa está fora da janela de 24h do WhatsApp — uma mensagem digitada aqui vai falhar. Envie o modelo de
+            reengajamento abaixo para reabrir a conversa; depois que o contato responder, o campo de texto volta a funcionar
+            normalmente.
+          </div>
+        )}
+        <Textarea
+          placeholder="Mensagem"
+          rows={2}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          disabled={thread.outsideEngagementWindow}
+        />
         <input
           ref={attachmentInputRef}
           type="file"
@@ -188,16 +218,28 @@ export function ContactThread({ canonicalKey, initialThread }: { canonicalKey: s
           </div>
         )}
         <div className="flex items-center justify-between gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => attachmentInputRef.current?.click()}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => attachmentInputRef.current?.click()}
+            disabled={thread.outsideEngagementWindow}
+          >
             <Paperclip /> Anexar
           </Button>
-          <Button
-            size="sm"
-            onClick={handleSend}
-            disabled={pending || (!message.trim() && !attachmentFile) || !thread.defaultOrganization || !thread.lastKnownNumber}
-          >
-            <Send /> Enviar
-          </Button>
+          {thread.outsideEngagementWindow ? (
+            <Button size="sm" onClick={handleSendTemplate} disabled={pending || !thread.defaultOrganization || !thread.lastKnownNumber}>
+              <Send /> Enviar modelo de reengajamento
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={handleSend}
+              disabled={pending || (!message.trim() && !attachmentFile) || !thread.defaultOrganization || !thread.lastKnownNumber}
+            >
+              <Send /> Enviar
+            </Button>
+          )}
         </div>
       </div>
     </div>

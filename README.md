@@ -41,7 +41,7 @@ emissora", "confiabilidade baixa/média/alta" — nunca "atestado falso" ou
 - **Zod** para validação, **React Hook Form** nos formulários mais complexos
 - **TanStack Table** nas tabelas de solicitações, **Recharts** nos gráficos do painel operacional
 - **Lucide React** para ícones
-- Camada de **services** desacoplada para OCR, extração estruturada, validação de médico/clínica, QR Code, forense documental, similaridade, score de risco, WhatsApp e notificações — extração (Claude Vision), validação de clínica/CNPJ (Receita Federal via BrasilAPI) e similaridade já usam lógica real por padrão; validação de médico/CRM é honesta mas limitada (cadastro verificado manualmente + formato, sem fonte pública do CFM); WhatsApp e notificações seguem mockados, com interfaces prontas para plugar provedores reais
+- Camada de **services** desacoplada para OCR, extração estruturada, validação de médico/clínica, QR Code, forense documental, similaridade, score de risco, WhatsApp e notificações — extração (Claude Vision, com cache por hash do arquivo), validação de clínica/CNPJ (Receita Federal via BrasilAPI), QR Code (decodificação real da imagem), forense de metadados/camadas/tipografia, similaridade (fingerprint + busca) e WhatsApp (Meta Cloud API real quando configurado por organização) já usam lógica real por padrão; validação de médico/CRM é honesta mas limitada (cadastro verificado manualmente + formato, sem fonte pública do CFM); e-mail é real via Resend. Só o OCR/extração cai de volta pro mock quando `EXTRACTION_PROVIDER` não está setado, e o WhatsApp cai pro simulado quando uma organização ainda não configurou telefone/token
 
 ## Setup local
 
@@ -108,8 +108,14 @@ Veja `.env.example` para a lista completa. Resumo:
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Credenciais do projeto Supabase |
 | `SUPABASE_STORAGE_BUCKET*` | Nomes dos buckets de storage |
 | `AUTH_SECRET` | Segredo do Auth.js (`openssl rand -base64 32`) |
-| `WHATSAPP_PROVIDER`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN` | Integração WhatsApp (mockada por padrão) |
+| `WHATSAPP_VERIFY_TOKEN` | Handshake do webhook do WhatsApp (Meta) — provider/telefone/token são configurados por organização em `/admin/whatsapp`, não por env var |
 | `WEBHOOK_SECRET` | Segredo usado para assinar payloads de webhook e o fallback de storage local |
+| `ANTHROPIC_API_KEY`, `EXTRACTION_PROVIDER=CLAUDE_VISION` | Extração real do atestado via Claude Vision |
+| `CRON_SECRET` | Autentica as chamadas do Vercel Cron em `/api/cron/*` (retenção, cobrança) |
+| `ASAAS_API_KEY`, `ASAAS_ENV` (`SANDBOX`\|`PRODUCTION`), `ASAAS_WEBHOOK_TOKEN` | Cobrança real (Asaas) — ver seção "Cobrança" abaixo |
+| `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` | Fila real do workflow de validação — sem elas, funciona só com o Inngest Dev Server local (`npx inngest-cli@latest dev`) |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Rate limiting real na API pública — sem elas, a API roda sem limite (aviso no log, não falha silenciosa) |
+| `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, `SENTRY_PROJECT` | Monitoramento de erro em produção — sem elas, o SDK fica inerte (no-op documentado) |
 
 ## Migrations e seed
 
@@ -186,33 +192,43 @@ status até um resultado final (`VALIDATED`, `VALIDATED_WITH_REMARKS`,
 `NOT_RECOGNIZED_BY_INSTITUTION`). Cada etapa grava um `RequestTimelineEvent`
 (marcado como visível ou não ao cliente) e, quando sensível, um `AuditLog`.
 
-Hoje o workflow roda **inline** dentro do Server Action/Route Handler que o
-dispara (upload no painel do cliente ou `POST .../files` na API pública) —
-suficiente para demonstrar o fluxo ponta a ponta sem infraestrutura extra.
-Para produção, mova o corpo de `runCertificateValidationWorkflow` para um
-job de fila real (veja próxima seção).
+O workflow roda de forma assíncrona, disparado por um evento Inngest
+(`certificate/uploaded`) — quem sobe o arquivo (painel do cliente ou
+`POST .../files` na API pública) só enfileira o evento e retorna na hora; o
+pipeline inteiro (OCR → decisão) roda em `src/inngest/functions.ts`,
+separado do ciclo de requisição/resposta que recebeu o upload. Localmente
+funciona com o Inngest Dev Server (`npx inngest-cli@latest dev`, apontado
+pra `http://localhost:3000/api/inngest`), sem precisar de conta; em
+produção precisa de `INNGEST_EVENT_KEY`/`INNGEST_SIGNING_KEY` de uma conta
+real (gratuita pra começar).
 
 ## Arquitetura de serviços
 
 ```
 src/server/services/
-  ocr.service.ts                 OcrService (mock)
-  extraction.service.ts          MedicalCertificateExtractionService (mock)
-  doctor-registry.service.ts     DoctorRegistryService (mock)
-  clinic-registry.service.ts     ClinicRegistryService (mock)
-  qrcode.service.ts              QrCodeVerificationService (mock)
-  forensics.service.ts           DocumentForensicsService (mock)
-  similarity.service.ts          DocumentSimilarityService (fingerprint real + matching mock)
-  risk-scoring.service.ts        RiskScoringService (determinístico, sem IA — ver seção 17/33 do spec)
-  whatsapp.service.ts            WhatsAppService + adapters (Meta/Twilio/Generic, mockados)
-  notification.service.ts        NotificationService (in-app + WhatsApp)
+  ocr.service.ts                 OcrService (mock — só usado quando EXTRACTION_PROVIDER≠CLAUDE_VISION)
+  extraction.service.ts          MedicalCertificateExtractionService (mock — idem)
+  document-intelligence.service.ts  Extração real via Claude Vision (EXTRACTION_PROVIDER=CLAUDE_VISION), com cache por hash do arquivo
+  doctor-registry.service.ts     DoctorRegistryService (real — cadastro verificado manualmente + formato; nunca fabrica confirmação)
+  clinic-registry.service.ts     ClinicRegistryService (real — CNPJ via Receita Federal/BrasilAPI, enriquecido com CNES via cache importado — ver scripts/import-verified-clinics.ts)
+  qrcode.service.ts              QrCodeVerificationService (real — decodificação de imagem + checagem de domínio/alcançabilidade)
+  forensics.service.ts           DocumentForensicsService (real — metadados/camadas/tipografia; IA-generation via Sightengine quando configurado)
+  similarity.service.ts          DocumentSimilarityService (real — fingerprint perceptual + busca de documentos parecidos)
+  risk-scoring.service.ts        RiskScoringService (determinístico, sem IA; limiares de decisão configuráveis por organização via OrganizationDecisionPolicy)
+  whatsapp.service.ts            WhatsAppService + adapters (Meta Cloud API real quando configurado por organização; Twilio/Generic seguem mockados)
+  notification.service.ts        NotificationService (in-app real, e-mail real via Resend, WhatsApp real via whatsapp.service.ts)
+  billing.service.ts             Assinatura (mensalidade-base) + faturamento mensal de uso via Asaas — ver seção "Cobrança"
   storage.service.ts             StorageAdapter (Supabase real + fallback local)
   webhook-dispatch.service.ts    Disparo assinado (HMAC) de eventos para webhooks de organizações
-  workflow.ts                    CertificateValidationWorkflow (orquestrador)
+  workflow.ts                    CertificateValidationWorkflow (orquestrador, disparado via Inngest — ver src/inngest/)
 ```
 
-Cada serviço mockado é uma classe que implementa uma interface — trocar a
-implementação (mock → real) nunca exige tocar nos call sites.
+Cada serviço com uma variante mock é uma classe que implementa uma
+interface — trocar a implementação (mock → real) nunca exige tocar nos call
+sites. A maioria já roda a implementação real por padrão hoje; os mocks que
+restam (OCR/extração sem `EXTRACTION_PROVIDER`, WhatsApp sem integração
+configurada, Twilio/Generic) são fallbacks explícitos, não o estado padrão
+do produto.
 
 ## Como plugar integrações reais
 
@@ -305,7 +321,10 @@ propõe a fazer), essas funções retornam 0 e ficam de fora do
 ## API pública e webhooks
 
 Autenticação por API key (gerada em `/admin/api-keys`), enviada via header
-`Authorization: Bearer <key>` (ou `X-API-Key`).
+`Authorization: Bearer <key>` (ou `X-API-Key`). Limitada a 60 requisições/minuto
+por chave quando `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` estão
+configurados — sem eles, roda sem limite (aviso no log do servidor, não uma
+falha silenciosa).
 
 ```
 POST   /api/v1/certificate-requests             cria uma solicitação (sem arquivo)
@@ -321,6 +340,36 @@ com o secret do endpoint): `request.received`, `request.processing_started`,
 `request.waiting_human_review`, `request.waiting_external_response`,
 `request.completed`, `request.inconsistent`, `request.contested`.
 
+## Cobrança
+
+Cada organização pode ter um plano atribuído (`billingPlanTier` +
+`billingBaseFeeCents`/`billingPerUnitCents`, atribuídos em `/admin/billing`)
+e uma assinatura ativa no [Asaas](https://www.asaas.com) — a plataforma de
+cobrança recorrente padrão do mercado brasileiro (boleto/PIX-first, onboarding
+nativo por CNPJ), escolhida em vez do Stripe puro justamente por isso: todo
+cliente do MedCheck é uma empresa brasileira.
+
+A mensalidade-base e o valor variável por atestado são cobrados de formas
+diferentes, porque a API do Asaas trata os dois casos de forma diferente:
+
+- **Mensalidade-base** — uma assinatura Asaas de valor fixo
+  (`createAsaasSubscription`), cobrada automaticamente todo mês pelo próprio
+  Asaas.
+- **Uso variável** — o Asaas não tem "assinatura de valor variável", então o
+  cron mensal (`/api/cron/billing`, todo dia 1º) soma os `UsageRecord` reais
+  do mês anterior (um por atestado efetivamente processado — ver
+  `recordUsage` em `billing.service.ts`) e cria uma cobrança avulsa
+  (`createAsaasCharge`) só com esse valor. Cada solicitação processada é
+  auditável até a fatura — nunca uma estimativa.
+
+Pagamentos e assinaturas são sincronizados de volta via webhook
+(`/api/webhooks/asaas`, autenticado pelo header `asaas-access-token` que o
+Asaas ecoa — configurado como `ASAAS_WEBHOOK_TOKEN`).
+
+**Para ativar de verdade**, veja "Ações que só você pode tomar" — resumindo:
+criar uma conta Asaas (sandbox pra testar, grátis), gerar uma API key, e
+preencher `ASAAS_API_KEY`/`ASAAS_ENV`/`ASAAS_WEBHOOK_TOKEN`.
+
 ## Checklist LGPD
 
 - [x] CPF sempre mascarado fora de contexto que exija o dado completo (`src/lib/masking.ts`)
@@ -332,8 +381,31 @@ com o secret do endpoint): `request.received`, `request.processing_started`,
 - [x] URLs de documento sempre assinadas e de curta duração (nunca um link público permanente)
 - [x] Toda ação sensível gera `AuditLog` (login, upload, download, mudança de status, edição de dados extraídos, contato, envio de mensagem, emissão de parecer, aprovação, contestação, exclusão/anonimização, alteração de permissão, geração de API key)
 - [x] Linguagem sempre não-acusatória em toda a interface e no parecer final
-- [ ] Job de anonimização/exclusão automática ao expirar `retentionUntil` (schema pronto; job ainda não agendado — ver Próximos passos)
-- [ ] Row Level Security no Postgres como camada extra (hoje o isolamento é garantido na camada de aplicação)
+- [x] Job de anonimização/exclusão automática ao expirar `retentionUntil` — cron real (`vercel.json` → `/api/cron/retention`, diário às 6h), protegido por `CRON_SECRET`
+- [ ] Row Level Security no Postgres como camada extra — ver "Por que não tem RLS ainda" abaixo; decisão deliberada, não um esquecimento
+
+### Por que não tem RLS ainda
+
+Cogitado e pesquisado, não implementado — e o motivo é técnico, não falta de
+prioridade. O Prisma conecta no Postgres com a mesma role usada pelas
+migrations (essencialmente dona das tabelas), e **essa role ignora RLS por
+definição do Postgres** — não é uma configuração que falta ligar, é o
+comportamento padrão de qualquer role dona/superusuária. Criar políticas de
+RLS hoje, do jeito que a conexão está montada, criaria uma falsa sensação de
+proteção: as políticas existiriam no banco, mas a própria aplicação
+continuaria ignorando-as em toda query.
+
+Pra RLS realmente proteger alguma coisa aqui, seria preciso: (1) uma role
+Postgres separada, sem privilégio de bypass, rodando as queries da
+aplicação; (2) políticas baseadas em uma variável de sessão (`current_setting`)
+setada a cada requisição; (3) uma extensão do Prisma Client injetando
+`SET LOCAL app.org_id = ...` antes de cada query — via transação — em toda a
+base de código; e (4) tratamento explícito para os papéis internos
+(analista/supervisor/admin), que **legitimamente** enxergam dados de
+múltiplas organizações nas telas `/ops` e `/admin`, então a política não
+pode ser um simples "trave por organizationId" global. É uma mudança de
+arquitetura de acesso a dados de verdade, não um `CREATE POLICY` a mais —
+por isso ficou de fora desta rodada, em vez de entrar pela metade.
 
 ## Próximos passos
 
@@ -341,9 +413,8 @@ com o secret do endpoint): `request.received`, `request.processing_started`,
   forense/antifraude") para reativar a verificação de compressão de imagem
   e adulteração localizada — a detecção de geração por IA já está integrada
   (Sightengine, opcional via `AI_DETECTION_PROVIDER`)
-- Job agendado (cron) para aplicar `DataRetentionPolicy` (anonimizar/expirar registros vencidos)
-- Mover o workflow automático para uma fila real (Inngest/Trigger.dev/BullMQ/QStash)
-- Regras de decisão automática configuráveis por organização (hoje centralizadas em `risk-scoring.service.ts`)
-- RLS no Postgres como defesa em profundidade além do isolamento por `organizationId` na aplicação
-- Geração do relatório final em PDF (hoje o parecer é renderizado como HTML/React; `FinalReport.pdfStoragePath` já está no schema)
-- Testes automatizados (unitários nos services de scoring/decisão; E2E no fluxo de upload → parecer)
+- RLS no Postgres — ver "Por que não tem RLS ainda" acima para o que isso realmente exige
+- Testes de integração/E2E no fluxo completo de upload → parecer (a suíte unitária real já cobre a lógica pura de decisão — score de risco, similaridade, CID-10, formato de CRM, fuzzy match, telefone, criptografia de segredos)
+- Tornar `runCertificateValidationWorkflow` seguro para retry (hoje roda com `retries: 0` no Inngest de propósito — ver `src/inngest/functions.ts`)
+- Cobertura de médicos (CRM) e de emissores confiáveis fora dos 10 estados já importados
+- Dunning/cobrança automática de fatura vencida além do status `OVERDUE` (hoje só reflete o que o Asaas reporta, não reage a ele)

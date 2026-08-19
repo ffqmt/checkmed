@@ -14,8 +14,9 @@ export default async function AdminWhatsAppPage() {
       <div>
         <h2 className="text-lg font-semibold">Integração WhatsApp</h2>
         <p className="text-sm text-muted-foreground">
-          Configure o provedor de WhatsApp Business por organização. Nenhum provedor real está conectado ainda — todo
-          envio é simulado (fica registrado, mas não sai de verdade), independente do que estiver configurado aqui.
+          Configure o provedor de WhatsApp Business por organização. Com o provedor Meta Cloud API configurado
+          (telefone + token abaixo), o envio é real. Sem configuração, o envio fica simulado — registrado, mas não sai
+          de verdade — até que os dados de acesso sejam preenchidos.
         </p>
       </div>
 

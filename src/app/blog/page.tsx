@@ -1,7 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Newspaper } from "lucide-react";
-import { EmptyState } from "@/components/shared/empty-state";
+import { posts } from "./posts";
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
 
 export default function BlogPage() {
   return (
@@ -20,8 +23,24 @@ export default function BlogPage() {
         <p className="mt-3 text-muted-foreground">
           Conteúdo sobre validação de atestados, compliance documental e LGPD para RH e jurídico.
         </p>
-        <div className="mt-12">
-          <EmptyState icon={Newspaper} title="Ainda sem publicações" description="Estamos preparando os primeiros conteúdos — volte em breve." />
+
+        <div className="mt-12 space-y-10">
+          {posts.map((post) => (
+            <article key={post.slug} className="border-b border-border/60 pb-10 last:border-0">
+              <p className="text-xs text-muted-foreground">
+                {formatDate(post.publishedAt)} · {post.readingMinutes} min de leitura
+              </p>
+              <h2 className="mt-2 font-[family-name:var(--font-display)] text-xl font-medium">
+                <Link href={`/blog/${post.slug}`} className="hover:underline">
+                  {post.title}
+                </Link>
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">{post.excerpt}</p>
+              <Link href={`/blog/${post.slug}`} className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
+                Ler mais →
+              </Link>
+            </article>
+          ))}
         </div>
       </main>
 

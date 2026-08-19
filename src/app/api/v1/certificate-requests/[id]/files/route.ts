@@ -6,7 +6,8 @@ import { recordAuditLog } from "@/server/audit";
 import { storageAdapter, sha256Of, buildStoragePath } from "@/server/services/storage.service";
 import { STORAGE_BUCKETS } from "@/lib/supabase";
 import { ACCEPTED_FILE_TYPES, MAX_FILE_SIZE_BYTES } from "@/lib/validations/certificate-request";
-import { runCertificateValidationWorkflow } from "@/server/services/workflow";
+import { recordUsage } from "@/server/services/billing.service";
+import { inngest } from "@/inngest/client";
 import type { DocumentFileType } from "@prisma/client";
 
 function fileTypeFromMime(mime: string): DocumentFileType {
@@ -60,8 +61,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     await recordTimelineEvent({ requestId: id, eventType: "FILE_UPLOADED", title: "Documento enviado via API", isClientVisible: true });
     await recordAuditLog({ organizationId, requestId: id, action: "FILE_UPLOADED", entityType: "DocumentFile", newData: { sha256Hash } });
+    await recordUsage(organizationId, id);
 
-    runCertificateValidationWorkflow(id).catch((error) => console.error("Workflow failed", error));
+    await inngest.send({ name: "certificate/uploaded", data: { requestId: id } });
 
     return NextResponse.json({ success: true, status: "PROCESSING" }, { status: 202 });
   } catch (error) {
