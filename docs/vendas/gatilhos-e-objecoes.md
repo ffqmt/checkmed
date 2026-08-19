@@ -1,6 +1,6 @@
 # Gatilhos emocionais e objeções reais
 
-Complementa `niveis-de-cliente.md` — aqui é sobre o que realmente move (ou
+Complementa [niveis-de-cliente.md](niveis-de-cliente.md) — aqui é sobre o que realmente move (ou
 trava) uma decisão de compra, não sobre segmentação.
 
 ## Os três medos que realmente vendem (ou impedem a venda)
@@ -38,7 +38,7 @@ responder por quê decidiram do jeito que decidiram?". Desloca o foco de
 **"Isso parece caro pra um problema que não sei se temos."**
 Ligado à objeção anterior — a resposta que funciona é reformular em tempo,
 não em risco: quanto tempo o RH já gasta, mesmo que pouco, em verificação
-manual ocasional. Ver `../produto/como-funciona.md` e o post "A conta que
+manual ocasional. Ver [como-funciona.md](../produto/como-funciona.md) e o post "A conta que
 ninguém faz".
 
 **"A gente já confia no bom senso do RH."**
@@ -58,7 +58,7 @@ colaborador.
 A resposta mais honesta é a mais forte aqui: o sistema nunca decide sozinho
 — casos de risco alto sempre vão para revisão humana, e a linguagem em toda
 a plataforma é deliberadamente neutra (nunca "atestado falso", sempre
-"indício de inconsistência"). Ver `../produto/visao-geral.md`, seção "O
+"indício de inconsistência"). Ver [visao-geral.md](../produto/visao-geral.md), seção "O
 que o produto nunca faz" — essa é literalmente a pergunta que essa decisão
 de design responde.
 

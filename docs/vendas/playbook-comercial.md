@@ -2,7 +2,10 @@
 
 ## Materiais de apresentação
 
-- **Roteiro de apresentação** (cena a cena, com falas prontas) —
+- **Roteiro de abordagem** ([roteiro-de-abordagem.md](roteiro-de-abordagem.md)) — falas prontas por
+  fase da reunião, incluindo as perguntas que criam o gatilho de necessidade;
+  acessível a qualquer usuário interno em `/ops/documentacao`.
+- **Roteiro de apresentação** (cena a cena, versão longa em Artifact) —
   https://claude.ai/code/artifact/51838ee2-c694-40a4-bfa9-37d581eca346
 - **Simulador de planos** (seguro para mostrar ao cliente — sem custo/margem
   visível) — https://claude.ai/code/artifact/50e174b9-4a9d-4b72-9055-ed5872d04b36
@@ -27,7 +30,7 @@ sustenta se questionada.
    verificado manualmente contra o CFM" é mais forte que "verificação por
    IA" — porque é verificável e específico, não uma promessa vaga.
 4. **Preço só depois do valor estar claro.** Nunca abrir a conversa com
-   preço — ver `../produto/como-funciona.md` e o roteiro para a sequência
+   preço — ver [como-funciona.md](../produto/como-funciona.md) e o roteiro para a sequência
    completa.
 
 ## Perguntas difíceis — respostas já testadas
@@ -48,12 +51,13 @@ de contrato longo, rodando com o volume real do cliente.
 
 18 posts reais em `/blog` — 3 explicativos sobre regulamentação e 15 pensados
 para gerar identificação emocional e responder objeção antes dela aparecer.
-Cada post em `niveis-de-cliente.md` está mapeado ao perfil de cliente onde
+Cada post em [niveis-de-cliente.md](niveis-de-cliente.md) está mapeado ao perfil de cliente onde
 funciona melhor — usar como material de acompanhamento entre a demonstração
 e o fechamento, não só como conteúdo de blog passivo.
 
 ## Ver também
 
-- `niveis-de-cliente.md` — como adaptar a abordagem por porte/perfil de cliente, e qual post usar em cada um
-- `gatilhos-e-objecoes.md` — os três medos reais por trás da decisão de compra, e como responder objeções sem ser defensivo
-- `precificacao.md` — onde os números de referência vivem hoje
+- [roteiro-de-abordagem.md](roteiro-de-abordagem.md) — as falas, em ordem, para cada fase da reunião
+- [niveis-de-cliente.md](niveis-de-cliente.md) — como adaptar a abordagem por porte/perfil de cliente, e qual post usar em cada um
+- [gatilhos-e-objecoes.md](gatilhos-e-objecoes.md) — os três medos reais por trás da decisão de compra, e como responder objeções sem ser defensivo
+- [precificacao.md](precificacao.md) — onde os números de referência vivem hoje

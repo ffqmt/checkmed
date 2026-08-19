@@ -76,6 +76,6 @@ rastreável até uma fonte real ou marcada honestamente como não verificada.
 
 ## Onde aprofundar
 
-- `como-funciona.md` — o pipeline completo, etapa por etapa
-- `glossario.md` — todo termo técnico usado no produto
-- `../analista/manual-do-analista.md` — como operar a ferramenta no dia a dia
+- [como-funciona.md](como-funciona.md) — o pipeline completo, etapa por etapa
+- [glossario.md](glossario.md) — todo termo técnico usado no produto
+- [../analista/manual-do-analista.md](../analista/manual-do-analista.md) — como operar a ferramenta no dia a dia

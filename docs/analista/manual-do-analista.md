@@ -2,7 +2,7 @@
 
 Este é o material de estudo para quem vai operar o MedCheck no dia a dia —
 revisar casos na fila, confirmar ou questionar os sinais automáticos, e
-emitir o parecer final. Leia `../produto/como-funciona.md` antes deste
+emitir o parecer final. Leia [como-funciona.md](../produto/como-funciona.md) antes deste
 documento — aqui assume-se que você já sabe o que cada etapa do pipeline
 faz.
 
@@ -49,7 +49,9 @@ Depois de revisar os sinais, você tem três caminhos:
   parecer.
 - **Registrar um contato** (`Aba Contatos`) quando for necessário confirmar
   diretamente com a clínica/instituição — o resultado desse contato
-  (confirmado, negado, sem resposta) também entra na timeline.
+  (confirmado, negado, sem resposta) também entra na timeline. Ver
+  [roteiros-de-contato.md](roteiros-de-contato.md) para as falas prontas e as perguntas certas
+  nessa ligação/WhatsApp.
 - **Divergir da recomendação automática** — você pode e deve fazer isso
   quando tiver informação que o sistema não tinha. O score é um apoio à
   decisão, não uma sentença.
@@ -61,7 +63,7 @@ O parecer final precisa de:
 - **Resultado** — uma das opções neutras (confirmado, confirmado com
   ressalvas, inconclusivo, inconsistente, não confirmado, não reconhecido
   pela instituição emissora). Nunca "atestado falso" ou "fraude" — ver
-  `../produto/visao-geral.md`, seção "O que o produto nunca faz". Essa regra
+  [visao-geral.md](../produto/visao-geral.md), seção "O que o produto nunca faz". Essa regra
   vale também para o texto livre que você escreve, não só para os campos
   estruturados.
 - **Resumo executivo** — em linguagem direta, o que foi verificado e por
@@ -90,7 +92,7 @@ armazenado no servidor, é impressão do navegador.
   um sinal de problema no documento.
 - **Tratar atestado de UBS/UPA/posto de saúde como "fora de rede".** A Lei
   605/49 inclui qualquer unidade do SUS na lista de emissores válidos, sem
-  ressalva — ver `../produto/glossario.md`.
+  ressalva — ver [glossario.md](../produto/glossario.md).
 - **Usar o CID como critério de decisão.** Na maioria dos casos ele nem
   deveria estar visível (Resolução CFM 1658/2002) — e mesmo quando está, não
   é o que valida ou invalida um atestado.
@@ -99,5 +101,6 @@ armazenado no servidor, é impressão do navegador.
 
 ## Ver também
 
-- `checklist-avaliacao.md` — checklist rápido por tipo de sinal
-- `casos-de-estudo/` — casos reais documentados, à medida que acontecem
+- [checklist-avaliacao.md](checklist-avaliacao.md) — checklist rápido por tipo de sinal
+- [roteiros-de-contato.md](roteiros-de-contato.md) — falas prontas para o contato com a clínica/instituição
+- [casos-de-estudo/](casos-de-estudo/) — casos reais documentados, à medida que acontecem

@@ -2,7 +2,7 @@
 
 Referência rápida — o que cada resultado de verificação realmente significa
 e o que fazer com ele. Para o contexto completo de como cada verificação
-funciona, ver `../produto/como-funciona.md`.
+funciona, ver [como-funciona.md](../produto/como-funciona.md).
 
 ## Médico (CRM)
 

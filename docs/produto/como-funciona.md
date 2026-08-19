@@ -127,12 +127,12 @@ exemplo) — isso protege a integridade da análise em si.
 `AUTO_VALIDATE` e `HUMAN_REVIEW` caem na mesma fila de analista — a etiqueta
 de score/confiabilidade indica quanto escrutínio o caso ainda precisa, mas
 hoje nenhum caso sai do sistema sem algum toque humano. Ver
-`../analista/manual-do-analista.md` para o que acontece a partir daqui.
+[manual-do-analista.md](../analista/manual-do-analista.md) para o que acontece a partir daqui.
 
 ## Sobre o próprio parecer final
 
 O resultado emitido nunca é "atestado falso" ou "fraude confirmada" — é
 sempre uma de: confirmado, confirmado com ressalvas, inconclusivo,
 inconsistente, não confirmado, ou não reconhecido pela instituição emissora.
-A diferença de linguagem é proposital — ver `visao-geral.md`, seção "O que o
+A diferença de linguagem é proposital — ver [visao-geral.md](visao-geral.md), seção "O que o
 produto nunca faz".

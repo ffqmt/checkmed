@@ -58,7 +58,7 @@ dor de cabeça".
 
 **Score de risco** — Número de 0 a 100 calculado deterministicamente (sem
 IA) a partir de todos os sinais de verificação. Ver
-`../produto/como-funciona.md` para a lógica completa.
+[como-funciona.md](como-funciona.md) para a lógica completa.
 
 **Confiabilidade** (Very Low / Low / Medium / High / Very High) — A
 tradução do score de risco em uma faixa qualitativa, exibida ao cliente.
@@ -106,7 +106,7 @@ acesso, correção, anonimização, exclusão ou exportação dos próprios dado
 ## Termos de infraestrutura/negócio
 
 **Asaas** — Plataforma de cobrança recorrente usada para a mensalidade-base
-e o faturamento mensal de uso. Ver `../vendas/precificacao.md`.
+e o faturamento mensal de uso. Ver [precificacao.md](../vendas/precificacao.md).
 
 **Inngest** — Sistema de fila usado para rodar o pipeline de validação fora
 do ciclo de requisição/resposta do upload.

@@ -19,6 +19,7 @@ import {
   UserPlus,
   Receipt,
   SlidersHorizontal,
+  BookOpen,
 } from "lucide-react";
 
 export type NavItem = {
@@ -41,6 +42,7 @@ export const internalNav: NavItem[] = [
   { href: "/ops/queue", label: "Fila de análise", icon: Inbox },
   { href: "/ops/disputes", label: "Contestações", icon: ShieldAlert },
   { href: "/ops/messages", label: "Central de Mensagens", icon: MessageSquare },
+  { href: "/ops/documentacao", label: "Documentação", icon: BookOpen },
 ];
 
 export const adminNav: NavItem[] = [

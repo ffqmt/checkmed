@@ -1,6 +1,6 @@
 # Níveis de cliente e abordagem
 
-Alinhado aos planos já definidos (ver `precificacao.md`) — mas o nível de
+Alinhado aos planos já definidos (ver [precificacao.md](precificacao.md)) — mas o nível de
 cliente é sobre *como vender e atender*, não só sobre qual preço cobrar.
 
 ## Starter — até ~150 atestados/mês

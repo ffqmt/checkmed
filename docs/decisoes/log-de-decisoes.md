@@ -6,6 +6,26 @@ Mais recente no topo.
 
 ---
 
+## 2026-08-19 — Documentação interna: dentro do app, não só no repositório
+
+**Decisão:** criar `/ops/documentacao`, uma tela dentro do próprio app que
+lê e renderiza os arquivos de `docs/` — acessível a qualquer usuário interno
+(analista, supervisor, admin), sem precisar de acesso ao repositório Git.
+
+**Por quê:** a pasta `docs/` cresceu como material real de estudo (manual do
+analista, roteiros de venda, comparativos), mas só existia como arquivo
+Markdown no código-fonte — inútil na prática para quem opera a ferramenta
+sem acesso ao repositório, como um analista recém-contratado. Motivado
+diretamente por essa lacuna ao criar o primeiro usuário Supervisor
+(Marilza) e perguntar se ela teria acesso a esse material.
+
+**Como:** leitura de arquivo em tempo de execução (`fs.readFile`), com
+`outputFileTracingIncludes` no `next.config.ts` para garantir que os `.md`
+sejam empacotados no deploy da Vercel — sem isso, funcionaria em
+desenvolvimento local e quebraria silenciosamente em produção.
+
+---
+
 ## 2026-08-19 — Cobrança: decisão do Asaas revisitada e confirmada
 
 **Decisão:** manter Asaas, depois de comparar de verdade contra Vindi,
@@ -20,7 +40,7 @@ descartado por um motivo concreto, não só preferência: PIX para empresas
 sediadas no Brasil está disponível **só por convite** hoje, o que
 inviabiliza pra maioria dos clientes reais da MedCheck.
 
-Ver `comparativo-provedores-cobranca.md` para a pesquisa completa, incluindo
+Ver [comparativo-provedores-cobranca.md](comparativo-provedores-cobranca.md) para a pesquisa completa, incluindo
 quando essa decisão merece ser revisitada.
 
 ---

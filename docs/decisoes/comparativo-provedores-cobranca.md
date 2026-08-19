@@ -1,6 +1,6 @@
 # Comparativo: por que Asaas, e não Vindi/Pagar.me/Iugu/Stripe
 
-A escolha do Asaas (ver `log-de-decisoes.md`, 2026-08-18) foi revisitada em
+A escolha do Asaas (ver [log-de-decisoes.md](log-de-decisoes.md), 2026-08-18) foi revisitada em
 2026-08-19 depois de uma pergunta direta: "é realmente a melhor opção?". Este
 documento é a pesquisa real por trás da resposta — não uma justificativa
 construída depois do fato.
