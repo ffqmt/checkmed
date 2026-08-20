@@ -70,15 +70,6 @@ export const DOC_CATEGORIES: DocCategory[] = [
       { slug: "decisoes/comparativo-provedores-cobranca", title: "Comparativo de provedores de cobrança", description: "Por que Asaas, comparado de verdade contra as alternativas" },
     ],
   },
-  {
-    id: "operacional",
-    label: "Operacional",
-    description: "O que ainda depende de uma ação externa (contas, chaves) fora do código.",
-    accent: "slate",
-    entries: [
-      { slug: "acoes-externas-pendentes", title: "Ações externas pendentes", description: "O que só a Fernanda pode fazer, e o que acontece sem isso" },
-    ],
-  },
 ];
 
 export function findDocEntry(slug: string): { entry: DocEntry; category: DocCategory } | null {

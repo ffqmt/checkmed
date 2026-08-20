@@ -39,7 +39,7 @@ docs/
   decisoes/
     log-de-decisoes.md               Registro cronológico das decisões de produto/negócio, com o porquê
     comparativo-provedores-cobranca.md  Por que Asaas — comparado de verdade contra Vindi/Pagar.me/Iugu/Stripe
-  acoes-externas-pendentes.md  Contas/chaves que só a Fernanda pode criar (Asaas, Inngest, Upstash, Sentry)
+  acoes-externas-pendentes.md  Contas/chaves que só a Fernanda pode criar (Asaas, Inngest, Upstash, Sentry) — checklist pessoal, fora de `/ops/documentacao` de propósito
 ```
 
 O blog (`/blog` no app, conteúdo em `src/app/blog/posts.tsx`) tem hoje 18
