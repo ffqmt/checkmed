@@ -6,6 +6,22 @@ Mais recente no topo.
 
 ---
 
+## 2026-08-20 — Resolução de contestação: UI que faltava, construída junto com a documentação de suporte
+
+**Decisão:** adicionar um painel de resolução de contestação
+(`DisputePanel`) em `/ops/requests/[id]`, visível a qualquer analista e
+com formulário de resolução para quem tem permissão de supervisor.
+
+**Por quê:** ao escrever `suporte/manual-do-suporte.md`, ficou claro que a
+action `resolveDispute` já existia no backend desde a fase anterior, mas
+nenhuma tela chamava ela — um analista conseguia ver que uma contestação
+existia (pela lista em `/ops/disputes`), mas não tinha como de fato
+resolvê-la. Documentar um fluxo que não existia de verdade teria sido
+descrição de intenção, não de produto — a opção certa foi fechar o
+gap antes de escrever sobre ele.
+
+---
+
 ## 2026-08-19 — Documentação interna: dentro do app, não só no repositório
 
 **Decisão:** criar `/ops/documentacao`, uma tela dentro do próprio app que

@@ -11,7 +11,7 @@ export type DocEntry = {
 };
 
 /** Named accent used for the category's card color and icon badge in the docs index — kept as a token, not a raw color, so the palette stays centralized in one place (see ACCENT_CLASSES in the index page). */
-export type DocAccent = "blue" | "teal" | "amber" | "violet" | "slate";
+export type DocAccent = "blue" | "teal" | "amber" | "violet" | "rose";
 
 export type DocCategory = {
   id: string;
@@ -58,6 +58,16 @@ export const DOC_CATEGORIES: DocCategory[] = [
       { slug: "vendas/niveis-de-cliente", title: "Níveis de cliente", description: "Segmentação, gatilho emocional real de cada perfil, e qual post usar" },
       { slug: "vendas/gatilhos-e-objecoes", title: "Gatilhos e objeções", description: "Os três medos que realmente vendem, e como responder objeção real" },
       { slug: "vendas/precificacao", title: "Precificação", description: "Onde os planos e o modelo de custo vivem hoje" },
+    ],
+  },
+  {
+    id: "suporte",
+    label: "Suporte",
+    description: "Como ajudar a empresa cliente depois que ela já é cliente — dúvidas, contestações, SLA.",
+    accent: "rose",
+    entries: [
+      { slug: "suporte/manual-do-suporte", title: "Manual de suporte ao cliente", description: "O fluxo completo de contestação, e o que já é automático" },
+      { slug: "suporte/perguntas-frequentes", title: "Perguntas frequentes", description: "Respostas prontas pras dúvidas mais comuns do cliente" },
     ],
   },
   {

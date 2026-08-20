@@ -15,6 +15,7 @@ import { DocumentViewer } from "@/components/shared/document-viewer";
 import { Field } from "@/components/shared/field";
 import { EvidenceFileLink } from "@/components/shared/evidence-file-link";
 import { ContactAttemptForm } from "@/components/requests/contact-attempt-form";
+import { DisputePanel } from "@/components/requests/dispute-panel";
 import { WhatsAppPanel } from "@/components/requests/whatsapp-panel";
 import { getWhatsAppMessages } from "@/server/actions/whatsapp";
 import { FinalReportForm } from "@/components/requests/final-report-form";
@@ -47,6 +48,7 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
       similarityMatches: { include: { matchedRequest: true } },
       riskAnalysis: { include: { alerts: true } },
       contactAttempts: { include: { responsibleUser: true, evidenceFile: true }, orderBy: { attemptedAt: "desc" } },
+      disputes: { orderBy: { createdAt: "desc" }, include: { openedBy: true, assignedTo: true } },
       timelineEvents: { orderBy: { createdAt: "asc" }, include: { user: true } },
       auditLogs: { orderBy: { createdAt: "desc" }, take: 50, include: { user: true } },
       finalReport: true,
@@ -83,6 +85,8 @@ export default async function OpsRequestDetailPage({ params }: { params: Promise
           <SlaIndicator dueAt={request.slaDueAt} completedAt={request.completedAt} />
         </CardContent>
       </Card>
+
+      {request.disputes[0] && <DisputePanel dispute={request.disputes[0]} canResolve={canApprove} />}
 
       <Tabs defaultValue="overview">
         <TabsList className="flex-wrap h-auto">

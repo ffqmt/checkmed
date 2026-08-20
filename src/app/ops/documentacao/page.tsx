@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Presentation, Layers, Stethoscope, TrendingUp, Scale, Wrench, ArrowRight } from "lucide-react";
+import { ChevronRight, Presentation, Layers, Stethoscope, TrendingUp, Scale, LifeBuoy, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DOC_CATEGORIES, type DocAccent } from "@/lib/docs-index";
 
@@ -8,7 +8,7 @@ const ACCENT_ICON: Record<DocAccent, typeof Layers> = {
   teal: Stethoscope,
   amber: TrendingUp,
   violet: Scale,
-  slate: Wrench,
+  rose: LifeBuoy,
 };
 
 const ACCENT_CLASSES: Record<DocAccent, { border: string; badge: string; title: string }> = {
@@ -16,7 +16,7 @@ const ACCENT_CLASSES: Record<DocAccent, { border: string; badge: string; title: 
   teal: { border: "border-l-teal-400", badge: "bg-teal-100 text-teal-600", title: "text-teal-700" },
   amber: { border: "border-l-amber-400", badge: "bg-amber-100 text-amber-600", title: "text-amber-800" },
   violet: { border: "border-l-violet-400", badge: "bg-violet-100 text-violet-600", title: "text-violet-700" },
-  slate: { border: "border-l-slate-400", badge: "bg-slate-100 text-slate-600", title: "text-slate-700" },
+  rose: { border: "border-l-rose-400", badge: "bg-rose-100 text-rose-600", title: "text-rose-700" },
 };
 
 export default function DocumentacaoIndexPage() {
@@ -25,7 +25,7 @@ export default function DocumentacaoIndexPage() {
       <div>
         <h2 className="text-lg font-semibold">Documentação</h2>
         <p className="text-sm text-muted-foreground">
-          Material de estudo do produto, do processo de análise e da abordagem comercial — cresce junto com o produto.
+          Material de estudo do produto, da análise, da venda e do suporte ao cliente — cresce junto com o produto.
         </p>
       </div>
 

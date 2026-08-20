@@ -18,13 +18,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createDispute } from "@/server/actions/disputes";
+import { DISPUTE_REASON_LABELS } from "@/lib/constants";
 
-const REASONS = [
-  { value: "dados_incorretos", label: "Dados do colaborador informados incorretamente" },
-  { value: "documento_adicional", label: "Possuo documentação adicional para análise" },
-  { value: "discordo_resultado", label: "Discordo do resultado da validação" },
-  { value: "outro", label: "Outro motivo" },
-];
+const REASONS = Object.entries(DISPUTE_REASON_LABELS).map(([value, label]) => ({ value, label }));
 
 export function DisputeButton({ requestId }: { requestId: string }) {
   const [open, setOpen] = React.useState(false);

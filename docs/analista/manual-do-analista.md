@@ -104,3 +104,4 @@ armazenado no servidor, é impressão do navegador.
 - [checklist-avaliacao.md](checklist-avaliacao.md) — checklist rápido por tipo de sinal
 - [roteiros-de-contato.md](roteiros-de-contato.md) — falas prontas para o contato com a clínica/instituição
 - [casos-de-estudo/](casos-de-estudo/) — casos reais documentados, à medida que acontecem
+- [../suporte/manual-do-suporte.md](../suporte/manual-do-suporte.md) — o que fazer quando o cliente contesta o seu resultado

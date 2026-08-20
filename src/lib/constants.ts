@@ -162,6 +162,14 @@ export const CONTACT_RESULT_LABELS: Record<ContactResult, string> = {
 /** The CID (diagnosis) code is treated as restricted even for internal staff — Brazilian labor law generally keeps an employer from knowing the specific diagnosis behind a medical leave, only that it's medically justified. Single source for this label so the internal and client-facing views can never drift apart. */
 export const CID_REDACTED_LABEL = "Restrito — dado sensível";
 
+/** Values match `reason` in DisputeButton (src/app/app/requests/[id]/dispute-button.tsx) — plain strings, not a Prisma enum, so kept as one shared map instead of duplicated inline. */
+export const DISPUTE_REASON_LABELS: Record<string, string> = {
+  dados_incorretos: "Dados do colaborador informados incorretamente",
+  documento_adicional: "Possui documentação adicional para análise",
+  discordo_resultado: "Discorda do resultado da validação",
+  outro: "Outro motivo",
+};
+
 export const DISPUTE_STATUS_LABELS: Record<DisputeStatus, string> = {
   OPEN: "Aberta",
   IN_REVIEW: "Em análise",

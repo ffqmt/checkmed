@@ -36,6 +36,9 @@ docs/
     niveis-de-cliente.md     Segmentação de cliente, gatilho emocional real de cada perfil, e qual post do blog usar em cada etapa
     gatilhos-e-objecoes.md   Os três medos que realmente vendem, e como responder às objeções mais comuns sem ser defensivo
     precificacao.md          Onde a precificação vive hoje e como evolui
+  suporte/
+    manual-do-suporte.md      O fluxo completo de contestação (Dispute), e o que já é automático
+    perguntas-frequentes.md   Respostas prontas pras dúvidas mais comuns do cliente
   decisoes/
     log-de-decisoes.md               Registro cronológico das decisões de produto/negócio, com o porquê
     comparativo-provedores-cobranca.md  Por que Asaas — comparado de verdade contra Vindi/Pagar.me/Iugu/Stripe
