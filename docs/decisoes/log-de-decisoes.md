@@ -6,6 +6,47 @@ Mais recente no topo.
 
 ---
 
+## 2026-08-20 — Cobrança de uso: acumula em vez de perder quando não atinge o mínimo da Asaas
+
+**Decisão:** quando o uso variável do mês não atinge o valor mínimo que a
+Asaas aceita por cobrança (R$ 10 boleto/PIX, R$ 5 cartão), a cobrança
+daquele mês não é mais tentada e descartada — os registros de uso ficam
+marcados como não faturados e entram na soma do(s) mês(es) seguinte(s),
+até o total ultrapassar o mínimo.
+
+**Por quê:** testando a ativação real da Asaas com valores pequenos (a
+organização TESTE), ficou claro que `generateMonthlyInvoices()` tentava
+cobrar todo mês e, se abaixo do mínimo, a chamada falhava e o uso daquele
+mês específico nunca mais era contabilizado em lugar nenhum — dinheiro
+real ficando pelo caminho silenciosamente. `UsageRecord` ganhou um campo
+`invoiceId` (antes só existia `billedAt`, renomeado para `occurredAt` já
+que não indicava mais cobrança) — só é considerado faturado quando de fato
+compõe uma `Invoice` gerada com sucesso.
+
+---
+
+## 2026-08-20 — Pacote anual: fechado, sem medir uso por cima
+
+**Decisão:** o pacote anual (`AnnualPackage`, novo modelo) é um valor
+único negociado, parcelado via Asaas (cartão, boleto ou PIX), válido por
+12 meses — sem cobrança de uso variável adicional durante a vigência.
+
+**Por quê:** perguntada diretamente se o pacote deveria continuar medindo
+uso por cima (modelo híbrido, mais justo pra cliente de alto volume, mais
+complexo de calcular e comunicar) ou ser totalmente fechado, a Fernanda
+escolheu fechado — mais simples de vender e de operar pra um primeiro
+momento. Pode ser revisitado se um cliente de volume muito alto tornar o
+modelo fechado desvantajoso para a empresa.
+
+**Como:** modelado como modelo próprio, não como extensão de
+`Subscription` — o ciclo de vida é fundamentalmente diferente (prazo fixo,
+não renova sozinho, vs. recorrência indefinida da assinatura mensal).
+Tecnicamente, é uma compra parcelada via `POST /v3/payments` da Asaas
+(campos `totalValue` + `installmentCount`), não uma assinatura — Asaas não
+tem um conceito nativo de "assinatura com fim programado".
+
+---
+
 ## 2026-08-20 — Resolução de contestação: UI que faltava, construída junto com a documentação de suporte
 
 **Decisão:** adicionar um painel de resolução de contestação

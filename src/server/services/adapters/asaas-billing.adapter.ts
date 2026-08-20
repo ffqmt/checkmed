@@ -104,6 +104,39 @@ export async function createAsaasCharge(params: {
   });
 }
 
+export type AsaasInstallmentPurchase = { id: string; status: string; invoiceUrl: string | null; installmentCount: number | null; installment: string | null };
+
+/**
+ * A closed, fixed-term deal (e.g. an annual package) paid over
+ * `installmentCount` parcels — Asaas splits `totalValueCents` across them
+ * automatically (`totalValue`, not `value` — the field name Asaas uses
+ * specifically for installment purchases on POST /v3/payments). Unlike
+ * createAsaasSubscription this never recurs on its own; a new package next
+ * term means calling this again.
+ */
+export async function createAsaasInstallmentPurchase(params: {
+  customerId: string;
+  billingType: AsaasBillingType;
+  totalValueCents: number;
+  installmentCount: number;
+  dueDate: string; // YYYY-MM-DD, first installment
+  description: string;
+  externalReference: string;
+}): Promise<AsaasInstallmentPurchase> {
+  return asaasFetch<AsaasInstallmentPurchase>("/payments", {
+    method: "POST",
+    body: JSON.stringify({
+      customer: params.customerId,
+      billingType: params.billingType,
+      totalValue: params.totalValueCents / 100,
+      installmentCount: params.installmentCount,
+      dueDate: params.dueDate,
+      description: params.description,
+      externalReference: params.externalReference,
+    }),
+  });
+}
+
 /** Registers our webhook URL with Asaas — a one-time setup call (see docs "Criar novo Webhook pela API"), not something run per-request. Kept here for completeness/documentation; actually invoking it is a manual one-off step (see README "Cobrança"). */
 export async function createAsaasWebhook(params: { url: string; accessToken: string; email: string }): Promise<{ id: string }> {
   return asaasFetch<{ id: string }>("/webhooks", {

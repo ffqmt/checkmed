@@ -39,9 +39,18 @@ atualizar tanto a calculadora quanto esta página quando isso acontecer.
 
 Implementado — ver `/admin/billing`:
 
-- **Mensalidade-base** — assinatura recorrente fixa via Asaas.
-- **Uso variável** — faturado mensalmente por uma cobrança avulsa, somando o
-  número real de atestados processados no mês anterior (não uma estimativa).
+- **Mensalidade-base** — assinatura recorrente fixa via Asaas, cobrada
+  antes (início de cada ciclo).
+- **Uso variável** — faturado depois: soma o número real de atestados
+  processados, acumulando mês a mês até o total ultrapassar o valor mínimo
+  que a Asaas aceita por cobrança (R$ 10 no boleto/PIX, R$ 5 no cartão) —
+  um mês fraco de uso não gera cobrança nenhuma, ele simplesmente entra na
+  soma do mês seguinte, até fechar.
+- **Pacote anual** (novo) — alternativa fechada: um valor único negociado,
+  parcelado (cartão, boleto ou PIX, conforme o que a Asaas aceitar para
+  cada um), válido por 12 meses. Enquanto ativo, uso não é medido nem
+  cobrado à parte — decisão registrada em `../decisoes/log-de-decisoes.md`,
+  2026-08-20.
 
 Ver `README.md` na raiz do repositório, seção "Cobrança", para o
 funcionamento técnico completo.

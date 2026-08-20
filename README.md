@@ -360,11 +360,21 @@ diferentes, porque a API do Asaas trata os dois casos de forma diferente:
   (`createAsaasSubscription`), cobrada automaticamente todo mês pelo próprio
   Asaas.
 - **Uso variável** — o Asaas não tem "assinatura de valor variável", então o
-  cron mensal (`/api/cron/billing`, todo dia 1º) soma os `UsageRecord` reais
-  do mês anterior (um por atestado efetivamente processado — ver
-  `recordUsage` em `billing.service.ts`) e cria uma cobrança avulsa
-  (`createAsaasCharge`) só com esse valor. Cada solicitação processada é
-  auditável até a fatura — nunca uma estimativa.
+  cron mensal (`/api/cron/billing`, todo dia 1º) soma os `UsageRecord` ainda
+  não faturados (`invoiceId: null` — um por atestado efetivamente
+  processado, ver `recordUsage` em `billing.service.ts`) e cria uma cobrança
+  avulsa (`createAsaasCharge`) só com esse valor. A Asaas exige um mínimo
+  por cobrança (R$ 10 boleto/PIX, R$ 5 cartão) — abaixo disso, os
+  `UsageRecord` continuam `invoiceId: null` e são somados de novo no próximo
+  mês, em vez de gerar uma cobrança que a Asaas recusaria (ou pior, de
+  simplesmente não cobrar nunca). Cada solicitação processada é auditável
+  até a fatura que a incluiu — nunca uma estimativa.
+- **Pacote anual** (`AnnualPackage`) — alternativa fechada: valor único
+  negociado, parcelado (`createAsaasInstallmentPurchase`, `POST
+  /v3/payments` com `totalValue`/`installmentCount` — a Asaas não tem
+  conceito de assinatura com fim programado), válido 12 meses. Enquanto
+  ativo, a organização é excluída do cron de uso variável — ver
+  `docs/decisoes/log-de-decisoes.md`, 2026-08-20.
 
 Pagamentos e assinaturas são sincronizados de volta via webhook
 (`/api/webhooks/asaas`, autenticado pelo header `asaas-access-token` que o

@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { permissions } from "@/lib/rbac";
 import { recordAuditLog } from "@/server/audit";
-import { activateSubscription, planDefaults } from "@/server/services/billing.service";
+import { activateSubscription, activateAnnualPackage, planDefaults, minimumChargeCentsFor } from "@/server/services/billing.service";
 import type { AsaasBillingType } from "@/server/services/adapters/asaas-billing.adapter";
 import type { BillingPlanTier } from "@prisma/client";
 
@@ -30,6 +30,12 @@ export async function assignBillingPlan(
   const resolvedPerUnit = perUnitCents ?? defaults?.perUnitCents;
   if (resolvedBase == null || resolvedPerUnit == null) {
     return { error: "Informe mensalidade-base e valor por atestado (sem valor padrão para ENTERPRISE)." };
+  }
+  const minimum = minimumChargeCentsFor(undefined);
+  if (resolvedBase < minimum) {
+    return {
+      error: `A mensalidade-base precisa ser de pelo menos ${(minimum / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} — é o mínimo que a Asaas aceita por cobrança (boleto/PIX).`,
+    };
   }
 
   await prisma.organization.update({
@@ -65,6 +71,32 @@ export async function activateOrganizationSubscription(organizationId: string, b
     action: "BILLING_SUBSCRIPTION_ACTIVATED",
     entityType: "Subscription",
     newData: { billingType },
+  });
+
+  revalidatePath("/admin/billing");
+  return { success: true };
+}
+
+/** Sells a closed annual package — one total value, split into installments, no variable usage billed on top for the covered year. See AnnualPackage in schema.prisma. */
+export async function createAnnualPackage(
+  organizationId: string,
+  totalValueCents: number,
+  installmentCount: number,
+  billingType: AsaasBillingType,
+) {
+  const session = await requireBillingAccess();
+  try {
+    await activateAnnualPackage(organizationId, totalValueCents, installmentCount, billingType);
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+
+  await recordAuditLog({
+    organizationId,
+    userId: session.user.id,
+    action: "ANNUAL_PACKAGE_ACTIVATED",
+    entityType: "AnnualPackage",
+    newData: { totalValueCents, installmentCount, billingType },
   });
 
   revalidatePath("/admin/billing");
