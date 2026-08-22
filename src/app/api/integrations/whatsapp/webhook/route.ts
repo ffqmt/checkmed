@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { whatsAppService } from "@/server/services/whatsapp.service";
+import { forwardToEmissor } from "@/server/services/emissor-forward.service";
+import { stripEmissorBoundMessages } from "@/lib/emissor-message-filter";
 
 /**
  * GET — Meta's webhook verification handshake:
@@ -17,9 +19,22 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ error: "verification_failed" }, { status: 403 });
 }
 
-/** POST — incoming messages and delivery-status callbacks from the WhatsApp provider. */
+/**
+ * POST — incoming messages and delivery-status callbacks from the WhatsApp
+ * provider. Also relays a raw copy to emissor (sibling product reusing this
+ * same number/App — see emissor-forward.service.ts) and strips
+ * emissor-bound messages before our own processing, so a WhatsApp
+ * verification code or "notas"/"status N" command doesn't show up as noise
+ * in our own inbox.
+ */
 export async function POST(request: NextRequest) {
-  const payload = await request.json();
-  await whatsAppService.processWebhookPayload(payload);
+  const rawBody = await request.text();
+  const payload = JSON.parse(rawBody);
+
+  await forwardToEmissor(rawBody);
+
+  const filteredPayload = stripEmissorBoundMessages(payload);
+  await whatsAppService.processWebhookPayload(filteredPayload);
+
   return NextResponse.json({ received: true });
 }
